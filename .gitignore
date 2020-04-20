@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache
+
+# IDE
+.idea/
+*.cbp
+.vscode
+
+# Logfiles
+*.log
