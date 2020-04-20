@@ -15,13 +15,12 @@ def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Calla
     groups = [g for g in os.getgroups() if g != 0]
     os.setgroups(groups)
     os.setresuid(uid, uid, uid)
-    if not kwargs:
-        if not args:
-            conn.send(original_func())
-        else:
-            conn.send(original_func(*args))
-    else:
+    if args and kwargs:
         conn.send(original_func(*args, **kwargs))
+    elif args:
+        conn.send(original_func(*args))
+    else:
+        conn.send(original_func())
     conn.close()
 
 
