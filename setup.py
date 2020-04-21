@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
+"""Setup"""
 
 import setuptools
 
 with open("README.md", "r") as fh:
-    long_description = fh.read()
+    long_description = fh.read() # pylint: disable = invalid-name
 
 setuptools.setup(
-    name="ref-utils",
+    name="ref_utils",
     version="0.0.1",
     author="Example Author",
     author_email="author@example.com",
@@ -21,4 +22,6 @@ setuptools.setup(
         "Operating System :: POSIX :: Linux",
     ],
     python_requires='>=3.6',
+    install_requires=["colorama==0.4.3"],
+
 )
