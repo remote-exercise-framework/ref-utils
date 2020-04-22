@@ -6,8 +6,8 @@ from functools import wraps
 import os
 
 
-DEFAULT_DROP_UID = 1000
-DEFAULT_DROP_GID = 1000
+DEFAULT_DROP_UID = 9999
+DEFAULT_DROP_GID = 9999
 
 
 def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Callable, *args, **kwargs) -> None:
