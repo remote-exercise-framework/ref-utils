@@ -14,9 +14,11 @@ def contains_flag(flag: str, python_script: Path, silent: bool = False) -> bool:
     if output is None:
         return FAILURE
     if not flag in output:
-        print_err("[!] It looks like flag was not printend")
+        if not silent:
+            print_err("[!] Failed to find flag")
         return FAILURE
-    print_ok("[+] Correct flag found")
+    if not silent:
+        print_ok("[+] Correct flag found")
     return SUCCESS
 
 
