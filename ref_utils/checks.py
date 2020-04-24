@@ -10,7 +10,7 @@ def contains_flag(flag: str, python_script: Path, silent: bool = False) -> bool:
     Run submitted file and match whether it contains the flag value.
     """
     cmd = ["python3", python_script]
-    output: Optional[str] = run(cmd, check_returncode=True, timeout=10)
+    output: Optional[str] = run(cmd, check_returncode=False, timeout=10)
     if output is None:
         return FAILURE
     if not flag in output:

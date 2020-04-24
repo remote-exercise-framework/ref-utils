@@ -11,7 +11,7 @@ def _assert(condition: bool, error_msg: str, silent: bool) -> bool:
     """Custom 'assertion' that prints a warning rather than throwing AssertionError"""
     if not condition:
         if not silent:
-            print_err(f"AssertionError: {error_msg}")
+            print_err(f"[!] {error_msg}")
         return False
     return True
 
