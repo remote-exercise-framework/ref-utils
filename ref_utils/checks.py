@@ -2,11 +2,10 @@
 from pathlib import Path
 from typing import List, Optional
 
-from .utils import print_ok, print_warn, print_err
-from .utils import run, SUCCESS, FAILURE
+from .utils import print_ok, print_warn, print_err, run, SUCCESS, FAILURE
 
 
-def contains_flag(flag: str, python_script: Path) -> bool:
+def contains_flag(flag: str, python_script: Path, silent: bool = False) -> bool:
     """
     Run submitted file and match whether it contains the flag value.
     """
@@ -15,9 +14,9 @@ def contains_flag(flag: str, python_script: Path) -> bool:
     if output is None:
         return FAILURE
     if not flag in output:
-        print_err("Could not find flag in script output :/")
+        print_err("[!] It looks like flag was not printend")
         return FAILURE
-    print_ok("Flag found")
+    print_ok("[+] Correct flag found")
     return SUCCESS
 
 
