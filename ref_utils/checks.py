@@ -2,8 +2,13 @@
 from pathlib import Path
 from typing import List, Optional
 
+import os
+
 from .utils import print_ok, print_warn, print_err, run, SUCCESS, FAILURE
 
+_NO_LINT_ENV_VAR = "NO_LINT"
+_ENV_VAL_TRUE = "1"
+_ENV_VAL_FALSE = "0"
 
 def contains_flag(flag: str, python_script: Path, silent: bool = False) -> bool:
     """
@@ -26,7 +31,7 @@ def run_pylint(python_files: List[Path]) -> bool:
     """
     Run pylint with custom config on user code (only interesting if submission contains .py files)
     """
-    if not python_files:
+    if not python_files or os.environ.get(_NO_LINT_ENV_VAR, '') == _ENV_VAL_TRUE:
         return SUCCESS
     lint_output = run(["pylint", "--exit-zero", "--rcfile", "/etc/pylintrc"] +
                       [str(f.resolve()) for f in python_files])
@@ -44,7 +49,7 @@ def run_mypy(python_files: List[Path]) -> bool:
     """
     Run mypy with custom config on user code (only interesting if submission contains typed .py files)
     """
-    if not python_files:
+    if not python_files or os.environ.get(_NO_LINT_ENV_VAR, '') == _ENV_VAL_TRUE:
         return SUCCESS
     lint_output = run(["mypy", "--config-file", "/etc/mypyrc"] + [str(f.resolve()) for f in python_files])
     if lint_output is None:
@@ -63,7 +68,7 @@ def check_all_python_files() -> bool:
     """
     tests_passed = True
     python_files = [f for f in Path("/home/user").glob("**/*.py") if not f.name.startswith(".")]
-    if not python_files:
+    if not python_files or os.environ.get(_NO_LINT_ENV_VAR, '') == _ENV_VAL_TRUE:
         return tests_passed
     print_ok(f'[+] Testing {len(python_files)} Python source code files')
     tests_passed &= run_pylint(python_files)
