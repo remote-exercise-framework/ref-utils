@@ -12,17 +12,17 @@ FAILURE = False
 def print_ok(*args: str, **kwargs: Any) -> None:
     """Print green to signal correctness"""
     _sep = kwargs.get('sep', ' ')
-    print(Fore.GREEN + _sep.join(args) + Style.RESET_ALL, kwargs)
+    print(Fore.GREEN + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
 
 def print_warn(*args: str, **kwargs: Any) -> None:
     """Print yellow to warn user"""
     _sep = kwargs.get('sep', ' ')
-    print(Fore.YELLOW + _sep.join(args) + Style.RESET_ALL, kwargs)
+    print(Fore.YELLOW + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
 
 def print_err(*args: str, **kwargs: Any) -> None:
     """Print red to alert user"""
     _sep = kwargs.get('sep', ' ')
-    print(Fore.RED + _sep.join(*args) + Style.RESET_ALL, kwargs)
+    print(Fore.RED + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
 
 @drop_privileges
 def run(cmd: List[str], check_returncode: bool = False, timeout: int = 10) -> Optional[str]:
