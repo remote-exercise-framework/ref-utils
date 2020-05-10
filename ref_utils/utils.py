@@ -71,3 +71,9 @@ def non_leaking_excepthook(type_: Type[BaseException], value: BaseException, tra
     else:
         sys.tracebacklimit = 0
         sys.__excepthook__(type_, value, traceback)
+
+def setup_non_leaking_excepthook() -> None:
+    """
+    Replace sys.excepthook by non_leaking_excepthook
+    """
+    sys.excepthook = non_leaking_excepthook
