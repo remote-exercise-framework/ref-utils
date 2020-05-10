@@ -1,7 +1,6 @@
 """Exception-free assert functions"""
-from os import PathLike
 from pathlib import Path
-from typing import Union
+from typing import Any, Union # pylint: disable = unused-import
 
 import os
 
@@ -15,20 +14,20 @@ def _assert(condition: bool, error_msg: str, silent: bool) -> bool:
         return False
     return True
 
-def assert_is_exec(executable: Union[str, PathLike, Path], silent: bool = False) -> bool:
+def assert_is_exec(executable: Union[str, 'os.PathLike[Any]', Path], silent: bool = False) -> bool:
     """Assert file exists and is executable"""
     if not isinstance(executable, Path):
         return assert_is_exec(Path(executable))
     return _assert(executable.exists and executable.is_file() and os.access(executable, os.X_OK),
                    f"Executable file {executable} not found or not executable", silent)
 
-def assert_is_file(file_: Union[str, PathLike, Path], silent: bool = False) -> bool:
+def assert_is_file(file_: Union[str, 'os.PathLike[Any]', Path], silent: bool = False) -> bool:
     """Assert file exists"""
     if not isinstance(file_, Path):
         return assert_is_file(Path(file_))
     return _assert(file_.exists and file_.is_file(), f"File {file_} not found", silent)
 
-def assert_is_dir(directory: Union[str, PathLike, Path], silent: bool = False) -> bool:
+def assert_is_dir(directory: Union[str, 'os.PathLike[Any]', Path], silent: bool = False) -> bool:
     """Assert directory exists"""
     if not isinstance(directory, Path):
         return assert_is_dir(Path(directory))
