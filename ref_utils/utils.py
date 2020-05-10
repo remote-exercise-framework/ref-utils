@@ -1,6 +1,9 @@
 """ Utility functions including colored printing or subprocess.run wrapper dropping privileges"""
-from typing import Any, List, Optional
+from types import TracebackType
+from typing import Any, List, Optional, Type
 import subprocess
+
+import sys
 
 from colorama import Fore, Style
 
@@ -55,3 +58,16 @@ def run_shell(cmd: List[str], check_returncode: bool = False, timeout: int = 10)
     except subprocess.CalledProcessError as err:
         print_err(f"[!] Unexpected error: {err}")
     return output
+
+def non_leaking_excepthook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
+    """
+    Handle an exception without displaying a traceback on sys.stderr.
+    Must overwrite sys.excepthook as follows:
+    `sys.excepthook = non_leaking_excepthook`
+    """
+    if type_ == KeyboardInterrupt:
+        print("KeyboardInterrupt")
+        sys.exit(0)
+    else:
+        sys.tracebacklimit = 0
+        sys.__excepthook__(type_, value, traceback)
