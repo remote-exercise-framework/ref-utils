@@ -4,7 +4,8 @@ from typing import List, Optional
 
 import os
 
-from .utils import print_ok, print_warn, print_err, run, SUCCESS, FAILURE
+from .utils import print_ok, print_warn, print_err, SUCCESS, FAILURE
+from .process import run
 
 _NO_LINT_ENV_VAR = "NO_LINT"
 _ENV_VAL_TRUE = "1"
