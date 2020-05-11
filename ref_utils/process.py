@@ -4,10 +4,27 @@ from multiprocessing.connection import Connection
 from typing import Any, Callable
 from functools import wraps
 import os
+import sys
+
+from .utils import non_leaking_excepthook
 
 
 _DEFAULT_DROP_UID = 9999
 _DEFAULT_DROP_GID = 9999
+
+
+class NLProcess(Process):
+    """
+    Non-Leaking Process - use custom non_leaking_excepthook to mask exceptions
+    """
+    def run(self) -> None:
+        try:
+            super().run()
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt!")
+            sys.exit(0)
+        except Exception:
+            non_leaking_excepthook(*sys.exc_info())
 
 
 def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
@@ -29,7 +46,7 @@ def drop_privileges_to(uid: int = _DEFAULT_DROP_UID, gid: int = _DEFAULT_DROP_GI
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             parent_conn, child_conn = Pipe()
-            p = Process(target=_drop_and_execute, args=(child_conn, uid, gid, func, *args,), kwargs=kwargs)
+            p = NLProcess(target=_drop_and_execute, args=(child_conn, uid, gid, func, *args,), kwargs=kwargs)
             p.start()
             output: Any = parent_conn.recv()
             p.join()
@@ -47,7 +64,7 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         parent_conn, child_conn = Pipe()
-        p = Process(target=_drop_and_execute, args=(child_conn, _DEFAULT_DROP_UID, _DEFAULT_DROP_GID, func, *args,), kwargs=kwargs)
+        p = NLProcess(target=_drop_and_execute, args=(child_conn, _DEFAULT_DROP_UID, _DEFAULT_DROP_GID, func, *args,), kwargs=kwargs)
         p.start()
         output: Any = parent_conn.recv()
         p.join()

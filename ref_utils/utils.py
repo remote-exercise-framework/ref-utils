@@ -12,20 +12,24 @@ from .process import drop_privileges
 SUCCESS = True
 FAILURE = False
 
+
 def print_ok(*args: str, **kwargs: Any) -> None:
     """Print green to signal correctness"""
     _sep = kwargs.get('sep', ' ')
     print(Fore.GREEN + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
+
 
 def print_warn(*args: str, **kwargs: Any) -> None:
     """Print yellow to warn user"""
     _sep = kwargs.get('sep', ' ')
     print(Fore.YELLOW + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
 
+
 def print_err(*args: str, **kwargs: Any) -> None:
     """Print red to alert user"""
     _sep = kwargs.get('sep', ' ')
     print(Fore.RED + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
+
 
 @drop_privileges
 def run(cmd: List[str], check_returncode: bool = False, timeout: int = 10) -> Optional[str]:
@@ -43,6 +47,7 @@ def run(cmd: List[str], check_returncode: bool = False, timeout: int = 10) -> Op
         print_err(f"[!] Unexpected error: {err}")
     return output
 
+
 @drop_privileges
 def run_shell(cmd: List[str], check_returncode: bool = False, timeout: int = 10) -> Optional[str]:
     """
@@ -59,6 +64,7 @@ def run_shell(cmd: List[str], check_returncode: bool = False, timeout: int = 10)
         print_err(f"[!] Unexpected error: {err}")
     return output
 
+
 def non_leaking_excepthook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
     """
     Handle an exception without displaying a traceback on sys.stderr.
@@ -66,11 +72,12 @@ def non_leaking_excepthook(type_: Type[BaseException], value: BaseException, tra
     `sys.excepthook = non_leaking_excepthook`
     """
     if type_ == KeyboardInterrupt:
-        print("KeyboardInterrupt")
+        print("KeyboardInterrupt!")
         sys.exit(0)
     else:
         sys.tracebacklimit = 0
         sys.__excepthook__(type_, value, traceback)
+
 
 def setup_non_leaking_excepthook() -> None:
     """
