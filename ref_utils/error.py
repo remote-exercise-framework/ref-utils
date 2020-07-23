@@ -1,0 +1,43 @@
+from .utils import decode_or_str
+import signal
+
+class RefUtilsError(Exception):
+    """
+    Base class of all exception we might raise during test execution.
+    This class allows a "submission test" to distinguisch exceptions raised
+    on purpose from those that are unexpected and not properly handeld by the
+    ref-utils.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class RefUtilsProcessTimeoutError(RefUtilsError):
+    
+    def __init__(self, cmd, timeout):
+        self.cmd: str = cmd
+        self.timeout: int = timeout
+        self.msg = f'[!] Timeout error for: {cmd} (after {timeout}s)'
+
+    def __str__(self):
+        return self.msg
+
+class RefUtilsProcessError(RefUtilsError):
+    
+    def __init__(self, cmd, exit_code, stdout: bytes, stderr: bytes):
+        self.exit_code = exit_code
+        if exit_code < 0:
+            exit_code = f'{exit_code} ({signal.Signals(exit_code*-1).name})'
+
+        self.stdout = stdout
+        self.stderr = stderr
+        self.msg = f'[!] Execution of {cmd} failed with exitcode {exit_code}.\n'
+        self.msg += '--------------------- STDOUT ---------------------\n'
+        self.msg += decode_or_str(self.stdout)
+        self.msg += '--------------------- STDERR ---------------------'
+        self.msg += decode_or_str(self.stderr)
+
+    def __str__(self):
+        return self.msg
+
+class RefUtilsAssertionError(RefUtilsError):
+    pass

@@ -2,6 +2,9 @@
 from pathlib import Path
 from typing import Any, Union # pylint: disable = unused-import
 
+from .error import RefUtilsAssertionError
+
+import signal
 import os
 
 from .utils import print_err
