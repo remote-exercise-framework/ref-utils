@@ -104,7 +104,7 @@ def run(cmd, *args, **kwargs) -> subprocess.CompletedProcess:
     are automatically unwrapped and printed by the submissions test. If not timeout is set,
     a deafult timeout of 10 seconds will be used.
     """
-    #Convert Path elements to string
+    #Convert Path to string
     cmd = map_to_str(cmd)
 
     if not 'env' in kwargs:
@@ -140,8 +140,7 @@ def get_payload_from_executable(cmd: List[Union[str, Path]], check=True, verbose
     Returns:
         A tuple (exit_code, output: bytes)
     """
-
-    #Convert Path elements to string
+    #Convert Path to string
     cmd = map_to_str(cmd)
     cmd_as_str = ' '.join(cmd)
 
@@ -153,12 +152,8 @@ def get_payload_from_executable(cmd: List[Union[str, Path]], check=True, verbose
 
     return p.returncode, p.stdout
 
-def run_with_payload(cmd: List[Union[str, Path]], input: bytes=None, flag: bytes=None, check: bool=True, timeout: int=10) -> Tuple[int, bytes]:
-    """
-    Run the given command and check whether flag is contained in the output.
-    """
-
-    #Convert Path elements to string
+def run_with_payload(cmd: List[Union[str, Path]], input=None, flag=None, check=True, timeout: int=10) -> Tuple[int, bytes]:
+    #Convert Path to string
     cmd = map_to_str(cmd)
 
     p = run(cmd, check=check,

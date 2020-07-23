@@ -1,62 +1,88 @@
 from functools import wraps
+from collections import defaultdict
 from .utils import print_ok, print_err
 
-__environment_test_functions = []
-__submission_test_functions = []
-
-def add_environment_test(func):
-    global __environment_test_function
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    __environment_test_functions.append(wrapper)
-    return wrapper
-
-def add_submission_test(func):
-    global __submission_test_functions
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    __submission_test_functions.append(wrapper)
-    return wrapper
+DEFAULT_GROUP_NAME = 'default'
+__registered_test_groups = {}
 
 
-def __test_environ():
-    global __environment_test_functions
-    for ii, test in enumerate(__environment_test_functions):
-        print_ok(f'[+] Environment test {ii+1} of {len(__environment_test_functions)}')
-        ret = test()
-        if not ret:
-            return
-    return True
+class TestGroup():
 
-def __test_submission():
-    global __submission_test_functions
-    for ii, test in enumerate(__submission_test_functions):
-        print_ok(f'[+] Submission test {ii+1} of {len(__submission_test_functions)}')
-        ret = test()
-        if not ret:
-            return
-    return True
+    def __init__(self, name):
+        self.name = name
+        self.env_tests = []
+        self.submission_tests = []
 
+def add_environment_test(group=DEFAULT_GROUP_NAME):
+    global __registered_tests
+
+    def _add_environment_test(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        if group not in __registered_test_groups:
+            __registered_test_groups[group] = TestGroup(group)
+        __registered_test_groups[group].env_tests.append(wrapper)
+
+        return wrapper
+    return _add_environment_test
+
+def add_submission_test(group=DEFAULT_GROUP_NAME):
+    global __registered_tests
+
+    def _add_submission_test(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        if group not in __registered_test_groups:
+            __registered_test_groups[group] = TestGroup(group)
+        __registered_test_groups[group].submission_tests.append(wrapper)
+
+        return wrapper
+    return _add_submission_test
 
 def run_tests():
-    global __environment_test_function
-
+    """
+    Must be called by the test script to execute all tests.
+    """
+    global __registered_tests
     print_ok('[+] Running tests..')
-    print_ok('[+] Testing environment..')
-    ret = __test_environ()
-    if ret:
-        print_ok('[+] Environment tests passed :-)\n')
+    passed = True
+    has_multiple_groups = len(__registered_test_groups) > 1
 
-    if ret:
-        print_ok('[+] Testing submission...')
-        ret = __test_submission()
+    for group_name, tests in __registered_test_groups.items():
+        group_passed = True
 
+        if has_multiple_groups:
+            print_ok(f'\n[+] Running tests for group {group_name}')
 
-    if not ret:
+        print_ok('[+] Testing environment...')
+        for ii, test in enumerate(tests.env_tests):
+            ret = test()
+            passed &= ret
+            group_passed &= ret
+
+        #Do not run submission tests if the environ is invalid
+        if not passed:
+            if has_multiple_groups:
+                print_err('[!] Group failed!')
+            continue
+        print_ok('[+] Environment tests passed :-)')
+
+        print_ok('[+] Testing submission...')    
+        for ii, test in enumerate(tests.submission_tests):
+            ret = test()
+            passed &= ret
+            group_passed &= ret
+        
+        if not passed and has_multiple_groups:
+            print_err('[!] Group failed!')
+
+    if not passed:
         print_err('[!] Some tests failed! Please review your submission to avoid penalties during grading.')    
+        exit(2)
+
+    print_ok('[+] All tests passed! Good job :) Ready to submit!')
+    exit(0)
