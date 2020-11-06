@@ -2,7 +2,7 @@
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 from types import TracebackType
-from typing import Any, Callable, List, Optional, Type, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Tuple, Union
 from functools import wraps
 import os
 import subprocess
@@ -15,7 +15,7 @@ from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessEr
 _DEFAULT_DROP_UID = 9999
 _DEFAULT_DROP_GID = 9999
 
-def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType):
+def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
     if isinstance(value, RefUtilsError):
         print_err(str(value))
     elif isinstance(value, KeyboardInterrupt):
@@ -32,8 +32,8 @@ def ref_util_install_global_exception_hook() -> None:
     sys.excepthook = ref_util_exception_hook
 
 
-def get_user_env(last_cmd):
-    ret = {}
+def get_user_env(last_cmd: Optional[Union[str, bytes]]) -> Dict[str, Union[str, bytes]]:
+    ret: Dict[str, Union[str, bytes]] = {}
     with open('/tmp/.user_environ', 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -98,14 +98,14 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 @drop_privileges
-def run(cmd, *args, **kwargs) -> subprocess.CompletedProcess:
+def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subprocess.CompletedProcess[Any]':
     """
     Wrapper for subprocess.run which converts expected exceptions into customs types that
     are automatically unwrapped and printed by the submissions test. If not timeout is set,
     a deafult timeout of 10 seconds will be used.
     """
     #Convert Path to string
-    cmd = map_to_str(cmd)
+    cmd = map_to_str(cmd_)
 
     if not 'env' in kwargs:
         kwargs['env'] = get_user_env(cmd[0])
@@ -114,13 +114,13 @@ def run(cmd, *args, **kwargs) -> subprocess.CompletedProcess:
         kwargs['timeout'] = 10
 
     try:
-        return subprocess.run(cmd, *args, **kwargs)
+        return subprocess.run(cmd, *args, **kwargs) # type: ignore
     except subprocess.TimeoutExpired as err:
-        raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs.get('timeout'))
+        raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout'])
     except subprocess.CalledProcessError as err:
         raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr)
 
-def run_capture_output(*args, **kwargs) -> Tuple[int, bytes]:
+def run_capture_output(*args: str, **kwargs: Any) -> Tuple[int, bytes]:
     """
     Wrapper of subprocess.run that redirects stderr to stdout and returns
     (returncode, stdout). This methods raises the same exceptions as ref-utils
@@ -129,7 +129,7 @@ def run_capture_output(*args, **kwargs) -> Tuple[int, bytes]:
     p = run(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return p.returncode, p.stdout
 
-def get_payload_from_executable(cmd: List[Union[str, Path]], check=True, verbose=True, timeout: int=10) -> Tuple[int, bytes]:
+def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool = True, verbose: bool = True, timeout: int = 10) -> Tuple[int, bytes]:
     """
     Get the payload from a script/binary by executing it and returning the output.
     Args:
@@ -141,8 +141,8 @@ def get_payload_from_executable(cmd: List[Union[str, Path]], check=True, verbose
         A tuple (exit_code, output: bytes)
     """
     #Convert Path to string
-    cmd = map_to_str(cmd)
-    cmd_as_str = ' '.join(cmd)
+    cmd = map_to_str(cmd_)
+    cmd_as_str = ' '.join(cmd) # type: ignore
 
     if verbose:
         print_ok(f'[+] Executing {cmd_as_str} and using its output as payload for the target..')
@@ -152,9 +152,9 @@ def get_payload_from_executable(cmd: List[Union[str, Path]], check=True, verbose
 
     return p.returncode, p.stdout
 
-def run_with_payload(cmd: List[Union[str, Path]], input=None, flag=None, check=True, timeout: int=10) -> Tuple[int, bytes]:
+def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = True, timeout: int=10) -> Tuple[int, bytes]:
     #Convert Path to string
-    cmd = map_to_str(cmd)
+    cmd = map_to_str(cmd_)
 
     p = run(cmd, check=check,
             input=input,

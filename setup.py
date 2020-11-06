@@ -8,14 +8,15 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="ref_utils",
-    version="0.1.3",
+    version="0.1.7",
     author="Example Author",
     author_email="author@example.com",
     description="A package containing various utility functions for remote-exercise-framework submission process",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/sampleproject",
-    packages=setuptools.find_packages(),
+    package_data={"ref_utils": ["py.typed"]},
+    packages=["ref_utils"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",

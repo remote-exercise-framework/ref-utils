@@ -1,12 +1,9 @@
 """ Utility functions including colored printing or subprocess.run wrapper dropping privileges"""
 import sys
-from typing import Any, Union
+from typing import Any, AnyStr, List, Union
 
 from pathlib import Path
 from colorama import Fore, Style
-
-SUCCESS = True
-FAILURE = False
 
 
 def print_ok(*args: str, **kwargs: Any) -> None:
@@ -26,10 +23,12 @@ def print_err(*args: str, **kwargs: Any) -> None:
     _sep = kwargs.get('sep', ' ')
     print(Fore.RED + _sep.join([str(o) for o in args]) + Style.RESET_ALL, **kwargs)
 
-def write_stdout(data: bytes):
-    sys.stdout.write(data)
 
-def decode_or_str(data: bytes):
+def write_stdout(data: AnyStr) -> None:
+    sys.stdout.write(data) # type: ignore
+
+
+def decode_or_str(data: bytes) -> str:
     if not data:
         return ''
     try:
@@ -37,13 +36,12 @@ def decode_or_str(data: bytes):
     except:
         return str(data)
 
-def map_to_str(cmd):
-    ret = []
+
+def map_to_str(cmd: List[Union[Path, str, bytes]]) -> List[Union[str, bytes]]:
+    ret: List[Union[str, bytes]] = []
     for c in cmd:
         if isinstance(c, Path):
             ret.append(c.as_posix())
-        elif isinstance(c, (str, bytes)):
-            ret.append(c)
         else:
-            raise TypeError(f'Unsupported type {type(c)} in cmd')
+            ret.append(c)
     return ret
