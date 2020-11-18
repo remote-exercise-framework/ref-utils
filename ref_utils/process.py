@@ -152,7 +152,7 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
 
     return p.returncode, p.stdout
 
-def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = True, timeout: int=10) -> Tuple[int, bytes]:
+def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = False, timeout: int=10) -> Tuple[int, bytes]:
     #Convert Path to string
     cmd = map_to_str(cmd_)
 

@@ -8,9 +8,9 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="ref_utils",
-    version="0.1.7",
-    author="Example Author",
-    author_email="author@example.com",
+    version="0.1.8",
+    author="Nils Bars, Moritz Schloegel",
+    author_email="nils.bars@rub.de, moritz.schloegel@rub.de",
     description="A package containing various utility functions for remote-exercise-framework submission process",
     long_description=long_description,
     long_description_content_type="text/markdown",
