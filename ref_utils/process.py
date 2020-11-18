@@ -106,6 +106,7 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     """
     #Convert Path to string
     cmd = map_to_str(cmd_)
+    check_signal = False
 
     if not 'env' in kwargs:
         kwargs['env'] = get_user_env(cmd[0])
@@ -113,23 +114,31 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 10
 
+    if kwargs.get('check_signal', False):
+        del kwargs['check_signal']
+        check_signal = True
+
     try:
-        return subprocess.run(cmd, *args, **kwargs) # type: ignore
+        ret = subprocess.run(cmd, *args, **kwargs) # type: ignore
+        if check_signal and ret.returncode < 0:
+            raise RefUtilsProcessError(' '.join([str(e) for e in ret.args]) , ret.returncode, ret.stdout, ret.stderr)
+        return ret
+
     except subprocess.TimeoutExpired as err:
         raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout'])
     except subprocess.CalledProcessError as err:
         raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr)
 
-def run_capture_output(*args: str, **kwargs: Any) -> Tuple[int, bytes]:
+def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
     """
     Wrapper of subprocess.run that redirects stderr to stdout and returns
     (returncode, stdout). This methods raises the same exceptions as ref-utils
     run() method.
     """
-    p = run(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p = run(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check_signal=check_signal)
     return p.returncode, p.stdout
 
-def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool = True, verbose: bool = True, timeout: int = 10) -> Tuple[int, bytes]:
+def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool = True, check_signal: bool = True, verbose: bool = True, timeout: int = 10) -> Tuple[int, bytes]:
     """
     Get the payload from a script/binary by executing it and returning the output.
     Args:
@@ -148,11 +157,11 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
         print_ok(f'[+] Executing {cmd_as_str} and using its output as payload for the target..')
 
     p = run(cmd, check=check, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                        timeout=timeout)
+                        timeout=timeout, check_signal=check_signal)
 
     return p.returncode, p.stdout
 
-def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = False, timeout: int=10) -> Tuple[int, bytes]:
+def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = False, check_signal: bool = True, timeout: int=10) -> Tuple[int, bytes]:
     #Convert Path to string
     cmd = map_to_str(cmd_)
 
@@ -161,6 +170,7 @@ def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[U
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             timeout=timeout,
+            check_signal=check_signal,
             )
 
     if flag and flag not in p.stdout:
