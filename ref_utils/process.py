@@ -106,7 +106,6 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     """
     #Convert Path to string
     cmd = map_to_str(cmd_)
-    check_signal = False
 
     if not 'env' in kwargs:
         kwargs['env'] = get_user_env(cmd[0])
@@ -114,9 +113,11 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 10
 
-    if kwargs.get('check_signal', False):
+    check_signal = kwargs.get('check_signal', None)
+    assert check_signal is None or type(check_signal) == bool
+    if check_signal is not None:
+        # Strip from kwargs we are about to pass to pythons run() method.
         del kwargs['check_signal']
-        check_signal = True
 
     try:
         ret = subprocess.run(cmd, *args, **kwargs) # type: ignore
