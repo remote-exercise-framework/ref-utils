@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .utils import print_err, map_to_str, print_ok, decode_or_str
+from .utils import print_err, map_path_as_posix, print_ok, decode_or_str
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
 
 _DEFAULT_DROP_UID = 9999
@@ -105,7 +105,7 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     a deafult timeout of 10 seconds will be used.
     """
     #Convert Path to string
-    cmd = map_to_str(cmd_)
+    cmd = map_path_as_posix(cmd_)
 
     if not 'env' in kwargs:
         kwargs['env'] = get_user_env(cmd[0])
@@ -151,7 +151,7 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
         A tuple (exit_code, output: bytes)
     """
     #Convert Path to string
-    cmd = map_to_str(cmd_)
+    cmd = map_path_as_posix(cmd_)
     cmd_as_str = ' '.join(cmd) # type: ignore
 
     if verbose:
@@ -164,7 +164,7 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
 
 def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = False, check_signal: bool = True, timeout: int=10) -> Tuple[int, bytes]:
     #Convert Path to string
-    cmd = map_to_str(cmd_)
+    cmd = map_path_as_posix(cmd_)
 
     p = run(cmd, check=check,
             input=input,

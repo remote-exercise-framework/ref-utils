@@ -37,7 +37,7 @@ def decode_or_str(data: bytes) -> str:
         return str(data)
 
 
-def map_to_str(cmd: List[Union[Path, str, bytes]]) -> List[Union[str, bytes]]:
+def map_path_as_posix(cmd: List[Union[Path, str, bytes]]) -> List[Union[str, bytes]]:
     ret: List[Union[str, bytes]] = []
     for c in cmd:
         if isinstance(c, Path):
