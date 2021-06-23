@@ -29,6 +29,11 @@ def write_stdout(data: AnyStr) -> None:
 
 
 def decode_or_str(data: bytes) -> str:
+    """
+    Get a string representing the passed `data`.
+    If the bytes are valid UTF8 they are just converted to a str.
+    Else, they are converted to string via `str(data)`.
+    """
     if not data:
         return ''
     try:
