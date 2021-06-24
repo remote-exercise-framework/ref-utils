@@ -15,7 +15,6 @@ class TestGroup():
         self.submission_tests: List[Callable[..., Any]] = []
 
 def add_environment_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
-    global __registered_tests
 
     def _add_environment_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
@@ -30,7 +29,6 @@ def add_environment_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[
     return _add_environment_test
 
 def add_submission_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
-    global __registered_tests
 
     def _add_submission_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
@@ -48,7 +46,6 @@ def run_tests() -> None:
     """
     Must be called by the test script to execute all tests.
     """
-    global __registered_tests
     print_ok('[+] Running tests..')
     passed = True
     has_multiple_groups = len(__registered_test_groups) > 1
@@ -70,20 +67,20 @@ def run_tests() -> None:
             if has_multiple_groups:
                 print_err('[!] Group failed!')
             continue
-        print_ok('[+] Environment tests passed :-)')
+        print_ok('[+] Environment tests passed')
 
-        print_ok('[+] Testing submission...')    
+        print_ok('[+] Testing submission...')
         for test in tests.submission_tests:
             ret = test()
             passed &= ret
             group_passed &= ret
-        
+
         if not passed and has_multiple_groups:
             print_err('[!] Group failed!')
 
     if not passed:
-        print_err('[!] Some tests failed! Please review your submission to avoid penalties during grading.')    
+        print_err('[!] Some tests failed! Please review your submission to avoid penalties during grading.')
         exit(2)
 
-    print_ok('[+] All tests passed! Good job :) Ready to submit!')
+    print_ok('[+] All tests passed! Good job. Ready to submit!')
     exit(0)

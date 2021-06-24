@@ -101,13 +101,24 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
 def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subprocess.CompletedProcess[Any]':
     """
     Wrapper for subprocess.run which converts expected exceptions into customs types that
-    are automatically unwrapped and printed by the submissions test. If not timeout is set,
-    a deafult timeout of 10 seconds will be used.
+    are automatically unwrapped and printed by the submissions test. If no timeout is passed,
+    a deafult timeout of 10 seconds will be used. The Args listed below can be used in addition to
+    the arguments normally expected by `subprocess.run`. Furthermore, the following arguments
+    behave differently to `subprocess.run` default behavior:
+        'env': If not passed, `env` is set to the user environment as of
+            `task <...>` was called.
+        'timeout': If not passed, `timeout` is set to 10.
+    Args:
+        check_signal = False: Raise a `RefUtilsProcessError` exceptions if the process is
+            terminated by a signal. If False, a process is allowed to terminated via a signal.
     """
     #Convert Path to string
     cmd = map_path_as_posix(cmd_)
 
     if not 'env' in kwargs:
+        # Restore the environment from the user as of the time she called `task ...`.
+        # NOTE: The stored environment contains user controlled input!
+        # Never restore the environment in a privileged context.
         kwargs['env'] = get_user_env(cmd[0])
 
     if 'timeout' not in kwargs:
@@ -120,15 +131,16 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         del kwargs['check_signal']
 
     try:
+        #pylint: disable=subprocess-run-check
         ret = subprocess.run(cmd, *args, **kwargs) # type: ignore
         if check_signal and ret.returncode < 0:
             raise RefUtilsProcessError(' '.join([str(e) for e in ret.args]) , ret.returncode, ret.stdout, ret.stderr)
         return ret
 
     except subprocess.TimeoutExpired as err:
-        raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout'])
+        raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout']) from err
     except subprocess.CalledProcessError as err:
-        raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr)
+        raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr) from err
 
 def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
     """
@@ -162,12 +174,29 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
 
     return p.returncode, p.stdout
 
-def run_with_payload(cmd_: List[Union[str, Path, bytes]], input: Optional[List[Union[str, bytes]]] = None, flag: Optional[bytes] = None, check: bool = False, check_signal: bool = True, timeout: int=10) -> Tuple[int, bytes]:
+def run_with_payload(cmd_: List[Union[str, Path, bytes]], stdin_input: Optional[Union[str, bytes]] = None, flag: Optional[bytes] = None, check: bool = False, check_signal: bool = True, timeout: int=10) -> Tuple[int, bytes]:
     #Convert Path to string
     cmd = map_path_as_posix(cmd_)
 
-    p = run(cmd, check=check,
-            input=input,
+    assert stdin_input is None or isinstance(stdin_input, (bytes, str)), f'Unexpected type {type(stdin_input)}'
+    assert(all([type(e) in (str, bytes) for e in cmd])), f'Wrong argument types {cmd}'
+
+    # Check for embedded null bytes in the cmd.
+    # subprocess.run raises a value error if null bytes are contained in the cmd.
+    for e in cmd:
+        if isinstance(e, str):
+            e_bytes = e.encode()
+        else:
+            e_bytes = e
+        for i, c in enumerate(e_bytes):
+            if c == 0x00:
+                raise RefUtilsError(
+                    f'[!] Input "{decode_or_str(e)}"" contains a null byte at offset {i}!\n[!] Please remove the embedded null byte.'
+                )
+
+    p = run(cmd,
+            check=check,
+            input=stdin_input,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             timeout=timeout,
