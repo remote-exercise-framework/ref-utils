@@ -15,14 +15,20 @@ from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessEr
 _DEFAULT_DROP_UID = 9999
 _DEFAULT_DROP_GID = 9999
 
+"""
+An exception handler that converts some raised exceptions into a more
+readable representation.
+"""
 def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
     if isinstance(value, RefUtilsError):
+        # We raised the exception, thus __str__() gives us a deatiled error
+        # description.
         print_err(str(value))
     elif isinstance(value, KeyboardInterrupt):
         print_err('[-] Keyboard Interrupt')
     else:
         #Make sure that we are not leaking any stack trace in case of unexpected exceptions
-        #sys.tracebacklimit = 0
+        # sys.tracebacklimit = 0
         sys.__excepthook__(type_, value, traceback)
 
 def ref_util_install_global_exception_hook() -> None:
@@ -58,26 +64,6 @@ def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Calla
         conn.send(e)
     finally:
         conn.close()
-
-
-# def drop_privileges_to(uid: int = _DEFAULT_DROP_UID, gid: int = _DEFAULT_DROP_GID) -> Callable[..., Any]:
-#     """
-#     Decorator which drops the privileges to given UID, GID tuple before executing the decorated function.
-#     Uses fork and setuid to drop privileges.
-#     Output is communicated back via a Pipe.
-#     """
-#     def _drop_privileges_to(func: Callable[..., Any]) -> Callable[..., Any]:
-#         @wraps(func)
-#         def wrapper(*args: Any, **kwargs: Any) -> Any:
-#             parent_conn, child_conn = Pipe()
-#             p = Process(target=_drop_and_execute, args=(child_conn, uid, gid, func, *args,), kwargs=kwargs)
-#             p.start()
-#             output: Any = parent_conn.recv()
-#             p.join()
-#             return output
-#         return wrapper
-#     return _drop_privileges_to
-
 
 def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     """
@@ -136,11 +122,12 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         if check_signal and ret.returncode < 0:
             raise RefUtilsProcessError(' '.join([str(e) for e in ret.args]) , ret.returncode, ret.stdout, ret.stderr)
         return ret
-
     except subprocess.TimeoutExpired as err:
         raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout']) from err
     except subprocess.CalledProcessError as err:
         raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr) from err
+    except OSError as os_err:
+        raise RefUtilsError('Failed to execute: {os_err}') from os_err
 
 def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
     """
