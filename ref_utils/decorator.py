@@ -54,7 +54,7 @@ def run_tests() -> None:
         group_passed = True
 
         if has_multiple_groups:
-            print_ok(f'\n[+] Running tests for group {group_name}')
+            print_ok(f'[+] *** Running tests for group {group_name} ***')
 
         print_ok('[+] Testing environment...')
         for test in tests.env_tests:
