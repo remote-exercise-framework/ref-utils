@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .utils import print_err, map_path_as_posix, print_ok, decode_or_str
+from .utils import print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
 
 _DEFAULT_DROP_UID = 9999
@@ -40,13 +40,19 @@ def ref_util_install_global_exception_hook() -> None:
 
 def get_user_env(last_cmd: Optional[Union[str, bytes]]) -> Dict[str, Union[str, bytes]]:
     ret: Dict[str, Union[str, bytes]] = {}
-    with open('/tmp/.user_environ', 'r') as f:
-        lines = f.readlines()
-        for line in lines:
+    content = Path('/tmp/.user_environ').read_text()
+    lines = content.split('\x00')
+    for line in lines:
+        if line == '':
+            continue
+
+        try:
             k, v = line.split('=', 1)
-            #Trim newline that is part of printenv's output
-            v = v[:-1]
+        except Exception as e:
+            print_err(f'Unexpected error while processing "{line}". Error: {e}.')
+        else:
             ret[k] = v
+
     if last_cmd is not None:
         ret['_'] = last_cmd
     return ret
@@ -127,7 +133,7 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     except subprocess.CalledProcessError as err:
         raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr) from err
     except OSError as os_err:
-        raise RefUtilsError('Failed to execute: {os_err}') from os_err
+        raise RefUtilsError(f'Failed to execute: {os_err}') from os_err
 
 def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
     """
