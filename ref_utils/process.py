@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import errno
 
 from .utils import print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
@@ -132,8 +133,14 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout']) from err
     except subprocess.CalledProcessError as err:
         raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr) from err
+    except PermissionError as err:
+        raise RefUtilsError(f'Failed to execute: {err}.\nIs the target executable and has a correct shebang?:') from err
     except OSError as os_err:
-        raise RefUtilsError(f'Failed to execute: {os_err}') from os_err
+        hints = ""
+        if os_err.errno == errno.ENOEXEC:
+            hints = '\nLooks like the file has the wrong format to be executed.\n'
+            hints += 'Check whether it has a shebang and is of the expected type.'
+        raise RefUtilsError(f'Failed to execute: {os_err}.{hints}') from os_err
 
 def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
     """
@@ -169,6 +176,7 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
 
 def run_with_payload(cmd_: List[Union[str, Path, bytes]], stdin_input: Optional[Union[str, bytes]] = None, flag: Optional[bytes] = None, check: bool = False, check_signal: bool = True, timeout: int=10) -> Tuple[int, bytes]:
     #Convert Path to string
+    assert isinstance(cmd_, list)
     cmd = map_path_as_posix(cmd_)
 
     assert stdin_input is None or isinstance(stdin_input, (bytes, str)), f'Unexpected type {type(stdin_input)}'
