@@ -54,7 +54,7 @@ def run_tests() -> None:
         group_passed = True
 
         if has_multiple_groups:
-            print_ok(f'[+] *** Running tests for group {group_name} ***')
+            print_ok(f'[+] *** Running tests for group \"{group_name}\" ***')
 
         print_ok('[+] Testing environment...')
         for test in tests.env_tests:
@@ -63,8 +63,10 @@ def run_tests() -> None:
             group_passed &= ret
 
         #Do not run submission tests if the environ is invalid
-        if not passed:
+        if not group_passed:
             if has_multiple_groups:
+                # Only print this if we have multiple groups. If we only have one,
+                # the would just duplicate the error printed at the end.
                 print_err('[!] Group failed!')
             continue
         print_ok('[+] Environment tests passed')
@@ -75,8 +77,11 @@ def run_tests() -> None:
             passed &= ret
             group_passed &= ret
 
-        if not passed and has_multiple_groups:
+        if not group_passed and has_multiple_groups:
+            # Avoid printing errors twice.
             print_err('[!] Group failed!')
+        elif group_passed:
+            print_ok('[+] Test passed')
 
     if not passed:
         print_err('[!] Some tests failed! Please review your submission to avoid penalties during grading.')
