@@ -108,6 +108,13 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     #Convert Path to string
     cmd = map_path_as_posix(cmd_)
 
+    # Make sure nobody is messing with stdin's TTY if we do not use it.
+    # This is for example an issue with gdb when it causes a timeout and is therefore
+    # forcefully killed via SIGKILL. If this happend, gdb fails to restore the TTY
+    # settings is changed on fd 0 and leaves the terminal in an unusable state.
+    if "stdin" not in kwargs:
+        kwargs["stdin"] = subprocess.DEVNULL
+
     if not 'env' in kwargs:
         # Restore the environment from the user as of the time she called `task ...`.
         # NOTE: The stored environment contains user controlled input!
