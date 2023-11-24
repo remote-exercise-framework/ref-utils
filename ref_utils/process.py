@@ -110,9 +110,9 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
 
     # Make sure nobody is messing with stdin's TTY if we do not use it.
     # This is for example an issue with gdb when it causes a timeout and is therefore
-    # forcefully killed via SIGKILL. If this happend, gdb fails to restore the TTY
+    # forcefully killed via SIGKILL. If this happened, gdb fails to restore the TTY
     # settings is changed on fd 0 and leaves the terminal in an unusable state.
-    if "stdin" not in kwargs:
+    if "stdin" not in kwargs and "input" not in kwargs:
         kwargs["stdin"] = subprocess.DEVNULL
 
     if not 'env' in kwargs:
