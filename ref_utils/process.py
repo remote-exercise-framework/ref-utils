@@ -9,6 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 import errno
+import pickle
+import io
+import importlib
 
 from .utils import print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
@@ -58,6 +61,27 @@ def get_user_env(last_cmd: Optional[Union[str, bytes]]) -> Dict[str, Union[str, 
         ret['_'] = last_cmd
     return ret
 
+# Hopefully safe, if not, please tell us, dont mess with the system. Thanks :)
+class RestrictedUnpickler(pickle.Unpickler):
+    ALLOWED_MODULE_NAME = {
+        ("subprocess", "CompletedProcess"),
+        ("ref_utils.error", "RefUtilsProcessError"),
+        ("ref_utils.error", "RefUtilsProcessTimeoutError"),
+        ("ref_utils.error", "RefUtilsAssertionError"),
+    }
+
+    def find_class(self, module, name):
+        # print(f"Unpickle is trying to find {module}.{name}")
+        for safe_module_name in RestrictedUnpickler.ALLOWED_MODULE_NAME:
+            if safe_module_name == (module, name):
+                m = importlib.import_module(module)
+                return getattr(m, name)
+        else:
+            err = pickle.UnpicklingError(f"{module}.{name} is forbidden")
+            raise RefUtilsError(f"Failed to parse the output of the target during testing. This should not happen. Please inform the staff. ({err})")
+
+def restricted_loads(s):
+    return RestrictedUnpickler(io.BytesIO(s)).load()
 
 def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
     os.setresgid(gid, gid, gid)
@@ -65,10 +89,13 @@ def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Calla
     os.setgroups(groups)
     os.setresuid(uid, uid, uid)
     try:
-        conn.send(original_func(*args, **kwargs))
+        ret = original_func(*args, **kwargs)
+        pickled_ret = pickle.dumps(ret)
+        conn.send_bytes(pickled_ret)
     except Exception as e:
         #Forward exception to our parent
-        conn.send(e)
+        pickled_e = pickle.dumps(e)
+        conn.send_bytes(pickled_e)
     finally:
         conn.close()
 
@@ -83,11 +110,12 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
         parent_conn, child_conn = Pipe()
         p = Process(target=_drop_and_execute, args=(child_conn, _DEFAULT_DROP_UID, _DEFAULT_DROP_GID, func, *args,), kwargs=kwargs)
         p.start()
-        output: Any = parent_conn.recv()
+        pickled_ret: Any = parent_conn.recv_bytes()
+        ret = restricted_loads(pickled_ret)
         p.join()
-        if isinstance(output, Exception):
-            raise output
-        return output
+        if isinstance(ret, Exception):
+            raise ret
+        return ret
     return wrapper
 
 @drop_privileges
