@@ -12,6 +12,7 @@ import errno
 import pickle
 import io
 import importlib
+from functools import partial
 
 from .utils import print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
@@ -19,30 +20,44 @@ from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessEr
 _DEFAULT_DROP_UID = 9999
 _DEFAULT_DROP_GID = 9999
 
-"""
-An exception handler that converts some raised exceptions into a more
-readable representation.
-"""
-def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
+def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType, redact_traceback: bool = False) -> None:
+    """
+    An exception handler that converts some raised exceptions into a representation that is suitable to
+    be displayed to the user. We use this handler to convert our custom exception type (RefUtilsError) into error messages
+    for the user. If an error is raised that has not been converted to a RefUtilsError by us, the expection
+    is printed as-is. This may leak details (through the backtrace) of the underlying submission test,
+    but experience showed that having the full backtrace is worth the risk.
+    """
     if isinstance(value, RefUtilsError):
-        # We raised the exception, thus __str__() gives us a deatiled error
+        # We raised the exception, thus __str__() gives us a detailed error
         # description.
         print_err(str(value))
     elif isinstance(value, KeyboardInterrupt):
         print_err('[-] Keyboard Interrupt')
     else:
-        #Make sure that we are not leaking any stack trace in case of unexpected exceptions
-        # sys.tracebacklimit = 0
+        if redact_traceback:
+            # Setting the traceback limit removes all stack frames from the printed message.
+            sys.tracebacklimit = 0
         sys.__excepthook__(type_, value, traceback)
 
 def ref_util_install_global_exception_hook() -> None:
     """
     Replace sys.excepthook by non_leaking_excepthook
     """
-    sys.excepthook = ref_util_exception_hook
+    hook = partial(ref_util_exception_hook, redact_traceback=False)
+    sys.excepthook = hook
 
 
 def get_user_env(last_cmd: Optional[Union[str, bytes]]) -> Dict[str, Union[str, bytes]]:
+    """
+    The task tool (task-wrapper.c) dumps the user environment in the moment it is executed
+    to disk. This function retrives the dumped environment from the file and returns it.
+    This allows to restore the user's exact environment which is paramount for tasks that
+    require a stable stack layout.
+    Returns:
+        The mapping of all key value pairs of the user environment variables that where
+        defined during submission.
+    """
     ret: Dict[str, Union[str, bytes]] = {}
     content = Path('/tmp/.user_environ').read_text()
     lines = content.split('\x00')
@@ -71,7 +86,6 @@ class RestrictedUnpickler(pickle.Unpickler):
     }
 
     def find_class(self, module, name):
-        # print(f"Unpickle is trying to find {module}.{name}")
         for safe_module_name in RestrictedUnpickler.ALLOWED_MODULE_NAME:
             if safe_module_name == (module, name):
                 m = importlib.import_module(module)
@@ -103,7 +117,8 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator which drops the privileges to default UID, GID tuple before executing the decorated function.
     Uses fork and setuid to drop privileges.
-    Output is communicated back via a Pipe.
+    NOTE: The decorated function's output is communicated back via a pipe and encoded via pickle.
+    Thus, we are unpickling untrusted data here!
     """
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -111,6 +126,9 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
         p = Process(target=_drop_and_execute, args=(child_conn, _DEFAULT_DROP_UID, _DEFAULT_DROP_GID, func, *args,), kwargs=kwargs)
         p.start()
         pickled_ret: Any = parent_conn.recv_bytes()
+        # ! Unpickle the data that was pickled by our untrusted party in `_drop_and_execute`.
+        # ! We are only allowing a subset of python types.
+        # ! It would be prefereable to use JSON here to make this actually feel safe.
         ret = restricted_loads(pickled_ret)
         p.join()
         if isinstance(ret, Exception):
@@ -132,6 +150,9 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     Args:
         check_signal = False: Raise a `RefUtilsProcessError` exceptions if the process is
             terminated by a signal. If False, a process is allowed to terminated via a signal.
+    Returns:
+        The result of the executed `cmd` as CompletedProcess (depending on the used kwargs, see python's run documentation).
+        NOTE: Every type returned from this function must be unpickable by the `RestrictedUnpickler`.
     """
     #Convert Path to string
     cmd = map_path_as_posix(cmd_)
@@ -160,6 +181,7 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
 
     try:
         #pylint: disable=subprocess-run-check
+        # ret will be of type CompletedProcess which is on the allow list of the `RestrictedUnpickler`.
         ret = subprocess.run(cmd, *args, **kwargs) # type: ignore
         if check_signal and ret.returncode < 0:
             raise RefUtilsProcessError(' '.join([str(e) for e in ret.args]) , ret.returncode, ret.stdout, ret.stderr)
@@ -175,6 +197,7 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         if os_err.errno == errno.ENOEXEC:
             hints = '\nLooks like the file has the wrong format to be executed.\n'
             hints += 'Check whether it has a shebang and is of the expected type.'
+        # FIXME: from os_err will not work with the pickle filter in place.
         raise RefUtilsError(f'Failed to execute: {os_err}.{hints}') from os_err
 
 def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
@@ -227,7 +250,7 @@ def run_with_payload(cmd_: List[Union[str, Path, bytes]], stdin_input: Optional[
         for i, c in enumerate(e_bytes):
             if c == 0x00:
                 raise RefUtilsError(
-                    f'[!] Input "{decode_or_str(e)}"" contains a null byte at offset {i}!\n[!] Please remove the embedded null byte.'
+                    f'[!] Input "{decode_or_str(e)}" contains a null byte at offset {i}!\n[!] Please remove the embedded null byte.'
                 )
 
     p = run(cmd,
