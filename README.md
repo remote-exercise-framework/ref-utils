@@ -6,7 +6,7 @@ Check requirements.txt
 
 ## Build
 ```
-git clone git@git.noc.ruhr-uni-bochum.de:SysSec-Teaching/ref-utils.git
+git clone git@github.com:remote-exercise-framework/ref-utils.git
 cd ref-utils
 pip install -f requirements.txt
 ```
@@ -43,4 +43,3 @@ Various checks to run on instances
 * `run_mypy` - mypy type checker - disable by setting environment variable NO_LINT="1"
 * `contains_flag` - execute given python script with python3 and check whether output contains a given flag value
 * TODO: stuff like: `exec_trace = exec(/submitted_file); assert_executes_syscalls(exec_trace, 'write /flag' )`
-
