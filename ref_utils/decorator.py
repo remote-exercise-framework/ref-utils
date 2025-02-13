@@ -12,19 +12,31 @@ import json
 
 TEST_RESULT_PATH = Path("/var/test_result")
 DEFAULT_GROUP_NAME = 'default'
-__registered_test_groups: ty.Dict[str, 'TestGroup'] = {}
-
+__registered_test_groups: ty.Dict[str, '_TestGroup'] = {}
 
 @dataclass
 class TestResult():
     """
-    The result of an submission test.
+    The result returned from a submission test.
+    """
+
+    # Whether the test should be considered successful.
+    success: bool
+    # The score that was achieved for this particular test.
+    # None, if not scored.
+    score: ty.Optional[float]
+
+
+@dataclass
+class _TestResult():
+    """
+    Class used to serialize data before sending it to the webserver.
     """
     name: str
     success: bool
     score: ty.Optional[float]
 
-class TestGroup():
+class _TestGroup():
     """
     Tests can be grouped and a group is only successfull when all tests in it pass.
     """
@@ -47,7 +59,7 @@ def environment_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Cal
             return func(*args, **kwargs)
 
         if group not in __registered_test_groups:
-            __registered_test_groups[group] = TestGroup(group)
+            __registered_test_groups[group] = _TestGroup(group)
         __registered_test_groups[group].env_tests.append(wrapper)
 
         return wrapper
@@ -65,7 +77,7 @@ def submission_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Call
             return func(*args, **kwargs)
 
         if group not in __registered_test_groups:
-            __registered_test_groups[group] = TestGroup(group)
+            __registered_test_groups[group] = _TestGroup(group)
         g = __registered_test_groups[group]
         if g.submission_test is not None:
             raise RefUtilsError("The @submission_test decorator can only be used once. Set the group kwarg to different values, if you have multiple tasks.")
@@ -82,7 +94,7 @@ def extended_submission_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Calla
             return func(*args, **kwargs)
 
         if group not in __registered_test_groups:
-            __registered_test_groups[group] = TestGroup(group)
+            __registered_test_groups[group] = _TestGroup(group)
         g = __registered_test_groups[group]
         if g.extended_submission_test is not None:
             raise RefUtilsError("The @extended_submission_test decorator can only be used once. Set the group kwarg to different values, if you have multiple tasks.")
@@ -99,7 +111,7 @@ def run_tests() -> None:
     print_ok('[+] Running tests..')
     all_tests_passed = True
     has_multiple_groups = len(__registered_test_groups) > 1
-    group_test_results: ty.List[TestResult] = []
+    group_test_results: ty.List[_TestResult] = []
 
     # Run all sub-tasks one after another.
     for group_name, tests in __registered_test_groups.items():
@@ -123,7 +135,7 @@ def run_tests() -> None:
 
         #Do not run submission tests if the environ is invalid
         if not group_passed:
-            group_test_results.append(TestResult(group_name, False, None))
+            group_test_results.append(_TestResult(group_name, False, None))
             if has_multiple_groups:
                 # Only print this if we have multiple groups. If we only have one,
                 # the would just duplicate the error printed at the end.
@@ -135,9 +147,9 @@ def run_tests() -> None:
         if tests.submission_test:
             ret = tests.submission_test()
             if isinstance(ret, bool):
-                ret = TestResult(group_name, ret, None)
+                ret = _TestResult(group_name, ret, None)
             elif isinstance(ret, TestResult):
-                pass
+                ret = _TestResult(group_name, ret.success, ret.score)
             else:
                 raise RefUtilsError(f"Submission test returned unexpected type: {type(ret)}")
 
@@ -146,7 +158,7 @@ def run_tests() -> None:
             all_tests_passed = False
         else:
             # If there is no test, we consider this to be an success.
-            group_test_results.append(TestResult(group_name, True, None))
+            group_test_results.append(_TestResult(group_name, True, None))
             print_ok("[+] No test found")
 
         if not group_passed and has_multiple_groups:
