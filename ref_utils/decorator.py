@@ -11,8 +11,8 @@ import warnings
 import json
 
 TEST_RESULT_PATH = Path("/var/test_result")
-DEFAULT_GROUP_NAME = 'default'
-__registered_test_groups: ty.Dict[str, '_TestGroup'] = {}
+DEFAULT_TASK_NAME = 'default'
+__registered_tasks: ty.Dict[str, '_Task'] = {}
 
 @dataclass
 class TestResult():
@@ -32,13 +32,18 @@ class _TestResult():
     """
     Class used to serialize data before sending it to the webserver.
     """
-    name: str
+    task_name: str
     success: bool
     score: ty.Optional[float]
 
-class _TestGroup():
+class _Task():
     """
-    Tests can be grouped and a group is only successfull when all tests in it pass.
+    A submission test can contain multiple tasks that are each checked individually and
+    do not require other tasks to success.
+    A Task consists of (see decorators below):
+        - none or multiple environment tests
+        - none or one submission_test
+        - none or one extended_submission_test
     """
 
     def __init__(self, name: str) -> None:
@@ -47,58 +52,58 @@ class _TestGroup():
         self.submission_test: ty.Optional[Callable[..., Any]]= None
         self.extended_submission_test: ty.Optional[Callable[..., Any]] = None
 
-def add_environment_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+def add_environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
     warnings.warn("Please use @environment_test instead of @add_environment_test")
-    return environment_test(group)
+    return environment_test(task_name)
 
-def environment_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+def environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
 
     def _environment_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: str, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
 
-        if group not in __registered_test_groups:
-            __registered_test_groups[group] = _TestGroup(group)
-        __registered_test_groups[group].env_tests.append(wrapper)
+        if task_name not in __registered_tasks:
+            __registered_tasks[task_name] = _Task(task_name)
+        __registered_tasks[task_name].env_tests.append(wrapper)
 
         return wrapper
     return _environment_test
 
-def add_submission_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+def add_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
     warnings.warn("Please use @submission_test instead of @add_submission_test")
-    return submission_test(group)
+    return submission_test(task_name)
 
-def submission_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+def submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
 
     def _submission_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: str, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
 
-        if group not in __registered_test_groups:
-            __registered_test_groups[group] = _TestGroup(group)
-        g = __registered_test_groups[group]
+        if task_name not in __registered_tasks:
+            __registered_tasks[task_name] = _Task(task_name)
+        g = __registered_tasks[task_name]
         if g.submission_test is not None:
-            raise RefUtilsError("The @submission_test decorator can only be used once. Set the group kwarg to different values, if you have multiple tasks.")
+            raise RefUtilsError("The @submission_test decorator can only be used once. Set the task_name kwarg to different values, if you have multiple tasks.")
         g.submission_test = wrapper
 
         return wrapper
     return _submission_test
 
-def extended_submission_test(group: str = DEFAULT_GROUP_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+def extended_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
 
     def _extended_submission_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: str, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
 
-        if group not in __registered_test_groups:
-            __registered_test_groups[group] = _TestGroup(group)
-        g = __registered_test_groups[group]
+        if task_name not in __registered_tasks:
+            __registered_tasks[task_name] = _Task(task_name)
+        g = __registered_tasks[task_name]
         if g.extended_submission_test is not None:
-            raise RefUtilsError("The @extended_submission_test decorator can only be used once. Set the group kwarg to different values, if you have multiple tasks.")
-        __registered_test_groups[group].extended_submission_test = wrapper
+            raise RefUtilsError("The @extended_submission_test decorator can only be used once. Set the task_name kwarg to different values, if you have multiple tasks.")
+        __registered_tasks[task_name].extended_submission_test = wrapper
 
         return wrapper
     return _extended_submission_test
@@ -110,17 +115,17 @@ def run_tests() -> None:
     """
     print_ok('[+] Running tests..')
     all_tests_passed = True
-    has_multiple_groups = len(__registered_test_groups) > 1
-    group_test_results: ty.List[_TestResult] = []
+    has_multiple_tasks = len(__registered_tasks) > 1
+    task_test_results: ty.List[_TestResult] = []
 
     # Run all sub-tasks one after another.
-    for group_name, tests in __registered_test_groups.items():
-        group_passed = True
+    for task_name, tests in __registered_tasks.items():
+        task_passed = True
 
         TEST_RESULT_PATH.unlink(missing_ok=True)
 
-        if has_multiple_groups:
-            print_ok(f'[+] *** Running tests for group \"{group_name}\" ***')
+        if has_multiple_tasks:
+            print_ok(f'[+] *** Running tests for task \"{task_name}\" ***')
 
         if tests.env_tests and not tests.submission_test and not tests.extended_submission_test:
             raise RefUtilsError("Using @environment_test without @submission_test or @extended_submission_test is not allowed")
@@ -130,16 +135,16 @@ def run_tests() -> None:
             ret = test()
             if not isinstance(ret, bool):
                 raise RefUtilsError("Function with the @environment_test decorator must return a bool")
-            group_passed &= ret
+            task_passed &= ret
             all_tests_passed = False
 
         #Do not run submission tests if the environ is invalid
-        if not group_passed:
-            group_test_results.append(_TestResult(group_name, False, None))
-            if has_multiple_groups:
-                # Only print this if we have multiple groups. If we only have one,
+        if not task_passed:
+            task_test_results.append(_TestResult(task_name, False, None))
+            if has_multiple_tasks:
+                # Only print this if we have multiple tasks. If we only have one,
                 # the would just duplicate the error printed at the end.
-                print_err('[!] Group failed!')
+                print_err('[!] Task failed!')
             continue
         print_ok('[+] Environment tests passed')
 
@@ -147,24 +152,24 @@ def run_tests() -> None:
         if tests.submission_test:
             ret = tests.submission_test()
             if isinstance(ret, bool):
-                ret = _TestResult(group_name, ret, None)
+                ret = _TestResult(task_name, ret, None)
             elif isinstance(ret, TestResult):
-                ret = _TestResult(group_name, ret.success, ret.score)
+                ret = _TestResult(task_name, ret.success, ret.score)
             else:
                 raise RefUtilsError(f"Submission test returned unexpected type: {type(ret)}")
 
-            group_test_results.append(ret)
-            group_passed &= ret.success
+            task_test_results.append(ret)
+            task_passed &= ret.success
             all_tests_passed = False
         else:
             # If there is no test, we consider this to be an success.
-            group_test_results.append(_TestResult(group_name, True, None))
+            task_test_results.append(_TestResult(task_name, True, None))
             print_ok("[+] No test found")
 
-        if not group_passed and has_multiple_groups:
+        if not task_passed and has_multiple_tasks:
             # Avoid printing errors twice.
-            print_err('[!] Group failed!')
-        elif group_passed:
+            print_err('[!] Task failed!')
+        elif task_passed:
             print_ok('[+] Test passed')
 
     if not all_tests_passed:
@@ -172,5 +177,5 @@ def run_tests() -> None:
     else:
         print_ok('[+] All tests passed! Good job. Ready to submit!')
 
-    results = json.dumps([asdict(e) for e in group_test_results])
+    results = json.dumps([asdict(e) for e in task_test_results])
     TEST_RESULT_PATH.write_text(results)
