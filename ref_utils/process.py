@@ -83,6 +83,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         ("ref_utils.error", "RefUtilsProcessError"),
         ("ref_utils.error", "RefUtilsProcessTimeoutError"),
         ("ref_utils.error", "RefUtilsAssertionError"),
+        ("ref_utils.error", "RefUtilsError")
     }
 
     def find_class(self, module, name):
