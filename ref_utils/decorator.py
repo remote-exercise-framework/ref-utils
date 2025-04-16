@@ -109,6 +109,7 @@ def extended_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Ca
     return _extended_submission_test
 
 
+
 def run_tests() -> None:
     """
     Must be called by the test script to execute all tests.
@@ -136,7 +137,7 @@ def run_tests() -> None:
             if not isinstance(ret, bool):
                 raise RefUtilsError("Function with the @environment_test decorator must return a bool")
             task_passed &= ret
-            all_tests_passed = False
+            all_tests_passed &= ret
 
         #Do not run submission tests if the environ is invalid
         if not task_passed:
@@ -150,7 +151,15 @@ def run_tests() -> None:
 
         print_ok('[+] Testing submission...')
         if tests.submission_test:
-            ret = tests.submission_test()
+            try:
+                ret = tests.submission_test()
+            except RefUtilsError as e:
+                print_err(str(e))
+                ret = False
+            except KeyboardInterrupt:
+                print_err('[-] Keyboard Interrupt')
+                ret = False
+
             if isinstance(ret, bool):
                 ret = _TestResult(task_name, ret, None)
             elif isinstance(ret, TestResult):
@@ -160,7 +169,7 @@ def run_tests() -> None:
 
             task_test_results.append(ret)
             task_passed &= ret.success
-            all_tests_passed = False
+            all_tests_passed &= ret.success
         else:
             # If there is no test, we consider this to be an success.
             task_test_results.append(_TestResult(task_name, True, None))
@@ -168,6 +177,8 @@ def run_tests() -> None:
 
         if not task_passed and has_multiple_tasks:
             # Avoid printing errors twice.
+            # If this is the only task, i.e., !has_multiple_tasks,
+            # we will print the error message further below.
             print_err('[!] Task failed!')
         elif task_passed:
             print_ok('[+] Test passed')
