@@ -14,7 +14,7 @@ import io
 import importlib
 from functools import partial
 
-from .utils import print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
+from .utils import get_user_environment, print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
 
 _DEFAULT_DROP_UID = 9999
@@ -46,35 +46,6 @@ def ref_util_install_global_exception_hook() -> None:
     """
     hook = partial(ref_util_exception_hook, redact_traceback=False)
     sys.excepthook = hook
-
-
-def get_user_env(last_cmd: Optional[Union[str, bytes]]) -> Dict[str, Union[str, bytes]]:
-    """
-    The task tool (task-wrapper.c) dumps the user environment in the moment it is executed
-    to disk. This function retrives the dumped environment from the file and returns it.
-    This allows to restore the user's exact environment which is paramount for tasks that
-    require a stable stack layout.
-    Returns:
-        The mapping of all key value pairs of the user environment variables that where
-        defined during submission.
-    """
-    ret: Dict[str, Union[str, bytes]] = {}
-    content = Path('/tmp/.user_environ').read_text()
-    lines = content.split('\x00')
-    for line in lines:
-        if line == '':
-            continue
-
-        try:
-            k, v = line.split('=', 1)
-        except Exception as e:
-            print_err(f'Unexpected error while processing "{line}". Error: {e}.')
-        else:
-            ret[k] = v
-
-    if last_cmd is not None:
-        ret['_'] = last_cmd
-    return ret
 
 # Hopefully safe, if not, please tell us, dont mess with the system. Thanks :)
 class RestrictedUnpickler(pickle.Unpickler):
@@ -169,7 +140,10 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         # Restore the environment from the user as of the time she called `task ...`.
         # NOTE: The stored environment contains user controlled input!
         # Never restore the environment in a privileged context.
-        kwargs['env'] = get_user_env(cmd[0])
+        env = get_user_environment()
+        # Set the last executed command variable ("_") to the correct value.
+        env["_"] = cmd[0]
+        kwargs['env'] = env
 
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 10
@@ -206,6 +180,7 @@ def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> 
     Wrapper of subprocess.run that redirects stderr to stdout and returns
     (returncode, stdout). This methods raises the same exceptions as ref-utils
     run() method.
+    If `env` is not set, the user environment when she called `task check` is restored.
     """
     p = run(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check_signal=check_signal)
     return p.returncode, p.stdout
@@ -213,6 +188,7 @@ def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> 
 def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool = True, check_signal: bool = True, verbose: bool = True, timeout: int = 10) -> Tuple[int, bytes]:
     """
     Get the payload from a script/binary by executing it and returning the output.
+    If `env` is not set, the user environment when she called `task check` is restored.
     Args:
         cmd: The command to execute.
         check: Same as for subprocess.run.
