@@ -9,6 +9,7 @@ from .utils import print_ok, print_err
 from dataclasses import dataclass, asdict
 import warnings
 import json
+import os
 
 TEST_RESULT_PATH = Path("/var/test_result")
 DEFAULT_TASK_NAME = 'default'
@@ -119,6 +120,11 @@ def run_tests() -> None:
     has_multiple_tasks = len(__registered_tasks) > 1
     task_test_results: ty.List[_TestResult] = []
 
+    # This is set by task.py if the user only wants to run a subset of tests.
+    only_run_these_tasks = os.environ.get("ONLY_RUN_THESE_TASKS")
+    if only_run_these_tasks:
+        only_run_these_tasks = only_run_these_tasks.split(":")
+
     # Run all sub-tasks one after another.
     for task_name, tests in __registered_tasks.items():
         task_passed = True
@@ -127,6 +133,9 @@ def run_tests() -> None:
 
         if has_multiple_tasks:
             print_ok(f'[+] *** Running tests for task \"{task_name}\" ***')
+            if only_run_these_tasks and task_name not in only_run_these_tasks:
+                print_ok(f"[+] User requested to exclude task, skipping...")
+                continue
 
         if tests.env_tests and not tests.submission_test and not tests.extended_submission_test:
             raise RefUtilsError("Using @environment_test without @submission_test or @extended_submission_test is not allowed")
