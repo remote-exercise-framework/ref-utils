@@ -4,9 +4,9 @@ import signal
 
 class RefUtilsError(Exception):
     """
-    Base class of all exception we might raise during test execution.
-    This class allows a "submission test" to distinguisch exceptions raised
-    on purpose from those that are unexpected and not properly handeld by the
+    Base class of all exceptions we might raise during test execution.
+    This class allows a "submission test" to distinguish exceptions raised
+    on purpose from those unexpected and not properly handled by the
     ref-utils.
     """
     def __init__(self, *args: str, **kwargs: Any) -> None:
@@ -35,7 +35,7 @@ class RefUtilsProcessError(RefUtilsError):
         self.msg = f'[!] Execution of {cmd} failed with exitcode {exit_code_str}.\n'
         self.msg += '--------------------- STDOUT ---------------------\n'
         self.msg += decode_or_str(self.stdout)
-        self.msg += '--------------------- STDERR ---------------------'
+        self.msg += '\n--------------------- STDERR ---------------------\n'
         self.msg += decode_or_str(self.stderr)
 
     def __str__(self) -> str:
