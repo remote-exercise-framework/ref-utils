@@ -82,6 +82,8 @@ def decode_or_str(data: str | bytes | bytearray) -> str:
 
 
 def map_path_as_posix(cmd: List[Union[Path, str, bytes]]) -> List[Union[str, bytes]]:
+    assert isinstance(cmd, list)
+    assert all([type(e) in (str, bytes) for e in cmd]), f'Wrong argument types {cmd}'
     ret: List[Union[str, bytes]] = []
     for c in cmd:
         if isinstance(c, Path):

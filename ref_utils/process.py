@@ -1,6 +1,7 @@
 """Functions related to dropping privileges"""
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
+import typing as t
 from types import TracebackType
 from typing import Any, Callable, Dict, List, Optional, Type, Tuple, Union
 from functools import wraps
@@ -13,12 +14,19 @@ import pickle
 import io
 import importlib
 from functools import partial
+import traceback
 
 from .utils import get_user_environment, print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
 from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
 
 _DEFAULT_DROP_UID = 9999
 _DEFAULT_DROP_GID = 9999
+
+def join_with_space_if_list(data: t.Union[str, t.List[str]]) -> str:
+    if isinstance(data, str):
+        return data
+    return " ".join(data)
+
 
 def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType, redact_traceback: bool = False) -> None:
     """
@@ -54,7 +62,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         ("ref_utils.error", "RefUtilsProcessError"),
         ("ref_utils.error", "RefUtilsProcessTimeoutError"),
         ("ref_utils.error", "RefUtilsAssertionError"),
-        ("ref_utils.error", "RefUtilsError")
+        ("ref_utils.error", "RefUtilsError"),
     }
 
     def find_class(self, module, name):
@@ -78,6 +86,10 @@ def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Calla
         ret = original_func(*args, **kwargs)
         pickled_ret = pickle.dumps(ret)
         conn.send_bytes(pickled_ret)
+    except AttributeError as e:
+        exception_str = traceback.format_exc()
+        print_err(f"[!] Unexpected error:\n{exception_str}")
+        exit(1)
     except Exception as e:
         #Forward exception to our parent
         pickled_e = pickle.dumps(e)
@@ -109,7 +121,7 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 @drop_privileges
-def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subprocess.CompletedProcess[Any]':
+def run(cmd_: Union[str, List[Union[str, Path, bytes]]], *args: str, **kwargs: Any) -> 'subprocess.CompletedProcess[Any]':
     """
     Wrapper for subprocess.run which converts expected exceptions into customs types that
     are automatically unwrapped and printed by the submissions test. If no timeout is passed,
@@ -126,8 +138,12 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         The result of the executed `cmd` as CompletedProcess (depending on the used kwargs, see python's run documentation).
         NOTE: Every type returned from this function must be unpickable by the `RestrictedUnpickler`.
     """
-    #Convert Path to string
-    cmd = map_path_as_posix(cmd_)
+    assert isinstance(kwargs.get("env", {}), dict)
+    if isinstance(cmd_, list):
+        # Convert Path to string
+        cmd = map_path_as_posix(cmd_)
+    else:
+        cmd = cmd_
 
     # Make sure nobody is messing with stdin's TTY if we do not use it.
     # This is for example an issue with gdb when it causes a timeout and is therefore
@@ -142,7 +158,11 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         # Never restore the environment in a privileged context.
         env = get_user_environment()
         # Set the last executed command variable ("_") to the correct value.
-        env["_"] = cmd[0]
+        if isinstance(cmd, list):
+            env["_"] = cmd[0]
+        else:
+            env["_"] = cmd
+
         kwargs['env'] = env
 
     if 'timeout' not in kwargs:
@@ -159,12 +179,12 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         # ret will be of type CompletedProcess which is on the allow list of the `RestrictedUnpickler`.
         ret = subprocess.run(cmd, *args, **kwargs) # type: ignore
         if check_signal and ret.returncode < 0:
-            raise RefUtilsProcessError(' '.join([str(e) for e in ret.args]) , ret.returncode, ret.stdout, ret.stderr)
+            raise RefUtilsProcessError(join_with_space_if_list(ret.args) , ret.returncode, ret.stdout, ret.stderr)
         return ret
     except subprocess.TimeoutExpired as err:
-        raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout']) from err
+        raise RefUtilsProcessTimeoutError(join_with_space_if_list(err.cmd), kwargs['timeout']) from err
     except subprocess.CalledProcessError as err:
-        raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr) from err
+        raise RefUtilsProcessError(join_with_space_if_list(err.cmd) , err.returncode, err.stdout, err.stderr) from err
     except PermissionError as err:
         raise RefUtilsError(f'Failed to execute: {err}.\nIs the target executable and has a correct shebang?:') from err
     except OSError as os_err:
