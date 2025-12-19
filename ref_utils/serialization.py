@@ -7,6 +7,7 @@ to control exactly which types can be serialized/deserialized.
 Security: Unlike pickle, this implementation cannot execute arbitrary code
 during deserialization. Only explicitly registered types are reconstructed.
 """
+
 import base64
 import builtins
 import json
@@ -192,11 +193,7 @@ def _register_error_types(serializer: IPCSerializer) -> None:
             type_tag="RefUtilsProcessError",
             target_type=RefUtilsProcessError,
             to_dict=lambda e: {
-                "cmd": (
-                    str(e.msg.split("Execution of ")[1].split(" failed")[0])
-                    if "Execution of" in e.msg
-                    else ""
-                ),
+                "cmd": (str(e.msg.split("Execution of ")[1].split(" failed")[0]) if "Execution of" in e.msg else ""),
                 "exit_code": e.exit_code,
                 "stdout": e.stdout,
                 "stderr": e.stderr,

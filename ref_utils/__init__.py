@@ -1,22 +1,51 @@
-"""Import functions to avoid .dot import for user""" # pylint: disable = invalid-name
+"""Import functions to avoid .dot import for user"""  # pylint: disable = invalid-name
+
 __all__ = [
     # Modules
-    'process', 'assertion', 'utils', 'decorator', 'config', 'serialization',
+    "process",
+    "assertion",
+    "utils",
+    "decorator",
+    "config",
+    "serialization",
     # Config
-    'Config', 'get_config', 'set_config', 'override_config',
+    "Config",
+    "get_config",
+    "set_config",
+    "override_config",
     # Assertion
-    'assert_is_dir', 'assert_is_exec', 'assert_is_file',
+    "assert_is_dir",
+    "assert_is_exec",
+    "assert_is_file",
     # Decorator
-    'TestResult', 'TaskTestResult', 'environment_test', 'submission_test',
-    'add_environment_test', 'add_submission_test', 'run_tests',
+    "TestResult",
+    "TaskTestResult",
+    "environment_test",
+    "submission_test",
+    "add_environment_test",
+    "add_submission_test",
+    "run_tests",
     # Process
-    'drop_privileges', 'run', 'run_capture_output', 'run_with_payload',
-    'get_payload_from_executable', 'ref_util_install_global_exception_hook',
+    "drop_privileges",
+    "run",
+    "run_capture_output",
+    "run_with_payload",
+    "get_payload_from_executable",
+    "ref_util_install_global_exception_hook",
     # Serialization
-    'IPCSerializer', 'TypeCodec', 'safe_dumps', 'safe_loads', 'get_serializer',
+    "IPCSerializer",
+    "TypeCodec",
+    "safe_dumps",
+    "safe_loads",
+    "get_serializer",
     # Utils
-    'print_ok', 'print_warn', 'print_err', 'write_stdout',
-    'decode_or_str', 'test_result_will_be_submitted', 'get_user_environment',
+    "print_ok",
+    "print_warn",
+    "print_err",
+    "write_stdout",
+    "decode_or_str",
+    "test_result_will_be_submitted",
+    "get_user_environment",
 ]
 from .assertion import assert_is_dir, assert_is_exec, assert_is_file
 from .config import Config, get_config, override_config, set_config

@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures for ref-utils tests."""
+
 import sys
 from pathlib import Path
 from typing import Generator
@@ -68,7 +69,5 @@ def mock_subprocess_run():
 @pytest.fixture
 def mock_multiprocessing():
     """Mock multiprocessing.Process and Pipe for testing privilege dropping."""
-    with patch("ref_utils.process.Process") as mock_process, patch(
-        "ref_utils.process.Pipe"
-    ) as mock_pipe:
+    with patch("ref_utils.process.Process") as mock_process, patch("ref_utils.process.Pipe") as mock_pipe:
         yield mock_process, mock_pipe

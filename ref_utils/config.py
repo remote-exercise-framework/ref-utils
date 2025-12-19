@@ -1,4 +1,5 @@
 """Configuration module for ref-utils with testable path abstraction."""
+
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field

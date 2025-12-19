@@ -1,12 +1,11 @@
 """Tests for ref_utils.decorator module."""
+
 import warnings
 from dataclasses import asdict
 from unittest.mock import patch
 
 import pytest
 
-from ref_utils import decorator
-from ref_utils.config import Config, override_config
 from ref_utils.decorator import (
     DEFAULT_TASK_NAME,
     TaskTestResult,
@@ -27,7 +26,8 @@ def _get_registered_tasks():
     # Module-level double underscore names are not mangled
     # Access through __dict__ to avoid attribute access issues
     import ref_utils.decorator as dec_module
-    return dec_module.__dict__['__registered_tasks']
+
+    return dec_module.__dict__["__registered_tasks"]
 
 
 @pytest.fixture(autouse=True)

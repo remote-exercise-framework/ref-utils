@@ -1,4 +1,5 @@
 """Tests for ref_utils.process module."""
+
 import sys
 from subprocess import CompletedProcess
 from unittest.mock import MagicMock, patch
@@ -230,9 +231,7 @@ class TestRunWithPayload:
                     mock_process = MagicMock()
                     mock_process_class.return_value = mock_process
 
-                    returncode, output = run_with_payload(
-                        ["./test"], flag=b"FLAG{secret}"
-                    )
+                    returncode, output = run_with_payload(["./test"], flag=b"FLAG{secret}")
 
                     assert returncode == 0
                     assert b"FLAG{secret}" in output
@@ -289,9 +288,7 @@ class TestDropPrivileges:
                     # Import and call the decorated run function
                     from ref_utils.process import run
 
-                    test_config.user_environ_path.parent.mkdir(
-                        parents=True, exist_ok=True
-                    )
+                    test_config.user_environ_path.parent.mkdir(parents=True, exist_ok=True)
                     test_config.user_environ_path.write_text("PATH=/usr/bin\x00")
 
                     try:

@@ -1,10 +1,10 @@
 """Functions related to dropping privileges"""
+
 import errno
 import os
 import subprocess
 import sys
 import traceback
-import typing as t
 import warnings
 from functools import partial, wraps
 from multiprocessing import Pipe, Process
@@ -19,25 +19,38 @@ from .serialization import safe_dumps, safe_loads
 from .utils import decode_or_str, get_user_environment, map_path_as_posix, print_err, print_ok
 
 
-def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType, redact_traceback: bool = False) -> None:
+def join_with_space_if_list(value: Union[str, List[str]]) -> str:
+    """Join a list with spaces or return string as-is."""
+    if isinstance(value, list):
+        return " ".join(value)
+    return value
+
+
+def ref_util_exception_hook(
+    type_: Type[BaseException],
+    value: BaseException,
+    traceback: Optional[TracebackType],
+    redact_traceback: bool = False,
+) -> None:
     """
     An exception handler that converts some raised exceptions into a representation that is suitable to
-    be displayed to the user. We use this handler to convert our custom exception type (RefUtilsError) into error messages
-    for the user. If an error is raised that has not been converted to a RefUtilsError by us, the expection
-    is printed as-is. This may leak details (through the backtrace) of the underlying submission test,
-    but experience showed that having the full backtrace is worth the risk.
+    be displayed to the user. We use this handler to convert our custom exception type (RefUtilsError)
+    into error messages for the user. If an error is raised that has not been converted to a
+    RefUtilsError by us, the expection is printed as-is. This may leak details (through the backtrace)
+    of the underlying submission test, but experience showed that having the full backtrace is worth the risk.
     """
     if isinstance(value, RefUtilsError):
         # We raised the exception, thus __str__() gives us a detailed error
         # description.
         print_err(str(value))
     elif isinstance(value, KeyboardInterrupt):
-        print_err('[-] Keyboard Interrupt')
+        print_err("[-] Keyboard Interrupt")
     else:
         if redact_traceback:
             # Setting the traceback limit removes all stack frames from the printed message.
             sys.tracebacklimit = 0
         sys.__excepthook__(type_, value, traceback)
+
 
 def ref_util_install_global_exception_hook() -> None:
     """
@@ -45,6 +58,7 @@ def ref_util_install_global_exception_hook() -> None:
     """
     hook = partial(ref_util_exception_hook, redact_traceback=False)
     sys.excepthook = hook
+
 
 # DEPRECATED: RestrictedUnpickler is kept for backward compatibility only.
 # New code should use safe_dumps/safe_loads from serialization module.
@@ -62,7 +76,10 @@ def restricted_loads(s: bytes) -> Any:
     )
     return safe_loads(s)
 
-def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+
+def _drop_and_execute(
+    conn: Connection, uid: int, gid: int, original_func: Callable[..., Any], *args: Any, **kwargs: Any
+) -> None:
     os.setresgid(gid, gid, gid)
     groups = [g for g in os.getgroups() if g != 0]
     os.setgroups(groups)
@@ -82,17 +99,29 @@ def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Calla
     finally:
         conn.close()
 
+
 def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator which drops the privileges to default UID, GID tuple before executing the decorated function.
     Uses fork and setuid to drop privileges.
     NOTE: The decorated function's output is communicated back via a pipe and encoded via JSON.
     """
+
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         parent_conn, child_conn = Pipe()
         config = get_config()
-        p = Process(target=_drop_and_execute, args=(child_conn, config.drop_uid, config.drop_gid, func, *args,), kwargs=kwargs)
+        p = Process(
+            target=_drop_and_execute,
+            args=(
+                child_conn,
+                config.drop_uid,
+                config.drop_gid,
+                func,
+                *args,
+            ),
+            kwargs=kwargs,
+        )
         p.start()
         serialized_ret: Any = parent_conn.recv_bytes()
         # Deserialize using JSON-based serialization (secure alternative to pickle)
@@ -101,10 +130,12 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
         if isinstance(ret, Exception):
             raise ret
         return ret
+
     return wrapper
 
+
 @drop_privileges
-def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subprocess.CompletedProcess[Any]':
+def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
     """
     Wrapper for subprocess.run which converts expected exceptions into customs types that
     are automatically unwrapped and printed by the submissions test. If no timeout is passed,
@@ -118,10 +149,11 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
         check_signal = False: Raise a `RefUtilsProcessError` exceptions if the process is
             terminated by a signal. If False, a process is allowed to terminated via a signal.
     Returns:
-        The result of the executed `cmd` as CompletedProcess (depending on the used kwargs, see python's run documentation).
+        The result of the executed `cmd` as CompletedProcess
+        (depending on the used kwargs, see python's run documentation).
         NOTE: Every type returned from this function must be unpickable by the `RestrictedUnpickler`.
     """
-    #Convert Path to string
+    # Convert Path to string
     cmd = map_path_as_posix(cmd_)
 
     # Make sure nobody is messing with stdin's TTY if we do not use it.
@@ -131,56 +163,66 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     if "stdin" not in kwargs and "input" not in kwargs:
         kwargs["stdin"] = subprocess.DEVNULL
 
-    if 'env' not in kwargs:
+    if "env" not in kwargs:
         # Restore the environment from the user as of the time she called `task ...`.
         # NOTE: The stored environment contains user controlled input!
         # Never restore the environment in a privileged context.
         env = get_user_environment()
         # Set the last executed command variable ("_") to the correct value.
         env["_"] = cmd[0]
-        kwargs['env'] = env
+        kwargs["env"] = env
 
-    if 'timeout' not in kwargs:
-        kwargs['timeout'] = 10
+    if "timeout" not in kwargs:
+        kwargs["timeout"] = 10
 
-    check_signal = kwargs.get('check_signal', None)
-    assert check_signal is None or type(check_signal) == bool
+    check_signal = kwargs.get("check_signal", None)
+    assert check_signal is None or isinstance(check_signal, bool)
     if check_signal is not None:
         # Strip from kwargs we are about to pass to pythons run() method.
-        del kwargs['check_signal']
+        del kwargs["check_signal"]
 
     try:
-        #pylint: disable=subprocess-run-check
+        # pylint: disable=subprocess-run-check
         # ret will be of type CompletedProcess which is on the allow list of the `RestrictedUnpickler`.
-        ret = subprocess.run(cmd, *args, **kwargs) # type: ignore
+        ret = subprocess.run(cmd, *args, **kwargs)  # type: ignore
         if check_signal and ret.returncode < 0:
-            raise RefUtilsProcessError(' '.join([str(e) for e in ret.args]) , ret.returncode, ret.stdout, ret.stderr)
+            raise RefUtilsProcessError(" ".join([str(e) for e in ret.args]), ret.returncode, ret.stdout, ret.stderr)
         return ret
     except subprocess.TimeoutExpired as err:
-        raise RefUtilsProcessTimeoutError(' '.join([str(e) for e in err.cmd]), kwargs['timeout']) from err
+        raise RefUtilsProcessTimeoutError(" ".join([str(e) for e in err.cmd]), kwargs["timeout"]) from err
     except subprocess.CalledProcessError as err:
-        raise RefUtilsProcessError(' '.join([str(e) for e in err.cmd]) , err.returncode, err.stdout, err.stderr) from err
+        raise RefUtilsProcessError(" ".join([str(e) for e in err.cmd]), err.returncode, err.stdout, err.stderr) from err
     except PermissionError as err:
-        raise RefUtilsError(f'Failed to execute: {err}.\nIs the target executable and has a correct shebang?:') from err
+        raise RefUtilsError(f"Failed to execute: {err}.\nIs the target executable and has a correct shebang?:") from err
     except OSError as os_err:
         hints = ""
         if os_err.errno == errno.ENOEXEC:
-            hints = '\nLooks like the file has the wrong format to be executed.\n'
-            hints += 'Check whether it has a shebang and is of the expected type.'
+            hints = "\nLooks like the file has the wrong format to be executed.\n"
+            hints += "Check whether it has a shebang and is of the expected type."
         # FIXME: from os_err will not work with the pickle filter in place.
-        raise RefUtilsError(f'Failed to execute: {os_err}.{hints}') from os_err
+        raise RefUtilsError(f"Failed to execute: {os_err}.{hints}") from os_err
 
-def run_capture_output(*args: str, check_signal: bool = True, **kwargs: Any) -> Tuple[int, bytes]:
+
+def run_capture_output(
+    cmd: List[Union[str, Path, bytes]], check_signal: bool = True, **kwargs: Any
+) -> Tuple[int, bytes]:
     """
     Wrapper of subprocess.run that redirects stderr to stdout and returns
     (returncode, stdout). This methods raises the same exceptions as ref-utils
     run() method.
     If `env` is not set, the user environment when she called `task check` is restored.
     """
-    p = run(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check_signal=check_signal)
+    p = run(cmd, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check_signal=check_signal)
     return p.returncode, p.stdout
 
-def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool = True, check_signal: bool = True, verbose: bool = True, timeout: int = 10) -> Tuple[int, bytes]:
+
+def get_payload_from_executable(
+    cmd_: List[Union[str, Path, bytes]],
+    check: bool = True,
+    check_signal: bool = True,
+    verbose: bool = True,
+    timeout: int = 10,
+) -> Tuple[int, bytes]:
     """
     Get the payload from a script/binary by executing it and returning the output.
     If `env` is not set, the user environment when she called `task check` is restored.
@@ -192,25 +234,34 @@ def get_payload_from_executable(cmd_: List[Union[str, Path, bytes]], check: bool
     Returns:
         A tuple (exit_code, output: bytes)
     """
-    #Convert Path to string
+    # Convert Path to string
     cmd = map_path_as_posix(cmd_)
-    cmd_as_str = ' '.join(cmd) # type: ignore
+    cmd_as_str = " ".join(cmd)  # type: ignore
 
     if verbose:
-        print_ok(f'[+] Executing {cmd_as_str} and using its output as payload for the target..')
+        print_ok(f"[+] Executing {cmd_as_str} and using its output as payload for the target..")
 
-    p = run(cmd, check=check, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                        timeout=timeout, check_signal=check_signal)
+    p = run(
+        cmd, check=check, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check_signal=check_signal
+    )
 
     return p.returncode, p.stdout
 
-def run_with_payload(cmd_: List[Union[str, Path, bytes]], stdin_input: Optional[Union[str, bytes]] = None, flag: Optional[bytes] = None, check: bool = False, check_signal: bool = True, timeout: int=10) -> Tuple[int, bytes]:
-    #Convert Path to string
+
+def run_with_payload(
+    cmd_: List[Union[str, Path, bytes]],
+    stdin_input: Optional[Union[str, bytes]] = None,
+    flag: Optional[bytes] = None,
+    check: bool = False,
+    check_signal: bool = True,
+    timeout: int = 10,
+) -> Tuple[int, bytes]:
+    # Convert Path to string
     assert isinstance(cmd_, list)
     cmd = map_path_as_posix(cmd_)
 
-    assert stdin_input is None or isinstance(stdin_input, (bytes, str)), f'Unexpected type {type(stdin_input)}'
-    assert(all([type(e) in (str, bytes) for e in cmd])), f'Wrong argument types {cmd}'
+    assert stdin_input is None or isinstance(stdin_input, (bytes, str)), f"Unexpected type {type(stdin_input)}"
+    assert all([type(e) in (str, bytes) for e in cmd]), f"Wrong argument types {cmd}"
 
     # Check for embedded null bytes in the cmd.
     # subprocess.run raises a value error if null bytes are contained in the cmd.
@@ -222,21 +273,23 @@ def run_with_payload(cmd_: List[Union[str, Path, bytes]], stdin_input: Optional[
         for i, c in enumerate(e_bytes):
             if c == 0x00:
                 raise RefUtilsError(
-                    f'[!] Input "{decode_or_str(e)}" contains a null byte at offset {i}!\n[!] Please remove the embedded null byte.'
+                    f'[!] Input "{decode_or_str(e)}" contains a null byte at offset {i}!\n'
+                    "[!] Please remove the embedded null byte."
                 )
 
-    p = run(cmd,
-            check=check,
-            input=stdin_input,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout,
-            check_signal=check_signal,
-            )
+    p = run(
+        cmd,
+        check=check,
+        input=stdin_input,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        check_signal=check_signal,
+    )
 
     if flag and flag not in p.stdout:
         output = decode_or_str(p.stdout)
-        msg = f'[!] Wrong output: {output}'
+        msg = f"[!] Wrong output: {output}"
         raise RefUtilsError(msg)
 
     return p.returncode, p.stdout

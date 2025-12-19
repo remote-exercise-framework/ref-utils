@@ -1,5 +1,7 @@
 """Tests for ref_utils.serialization module."""
+
 import json
+from collections.abc import Iterator
 from subprocess import CompletedProcess
 
 import pytest
@@ -20,7 +22,7 @@ from ref_utils.serialization import (
 
 
 @pytest.fixture(autouse=True)
-def reset_default_serializer() -> None:
+def reset_default_serializer() -> Iterator[None]:
     """Reset the default serializer between tests."""
     reset_serializer()
     yield

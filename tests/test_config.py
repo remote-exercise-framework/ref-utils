@@ -1,4 +1,5 @@
 """Tests for ref_utils.config module."""
+
 from pathlib import Path
 
 from ref_utils.config import Config, get_config, override_config, set_config

@@ -1,6 +1,6 @@
 """Tests for ref_utils.utils module."""
+
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 from colorama import Fore, Style
@@ -13,8 +13,10 @@ from ref_utils.utils import (
     print_err,
     print_ok,
     print_warn,
-    test_result_will_be_submitted as check_result_will_be_submitted,
     write_stdout,
+)
+from ref_utils.utils import (
+    test_result_will_be_submitted as check_result_will_be_submitted,
 )
 
 

@@ -1,4 +1,5 @@
 """Tests for ref_utils.checks module."""
+
 import os
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -18,9 +19,7 @@ from ref_utils.utils import FAILURE, SUCCESS
 
 def create_mock_run_result(stdout: str = "", returncode: int = 0):
     """Create a mock for the run function that returns a CompletedProcess."""
-    mock_result = CompletedProcess(
-        args=["test"], returncode=returncode, stdout=stdout.encode(), stderr=b""
-    )
+    mock_result = CompletedProcess(args=["test"], returncode=returncode, stdout=stdout.encode(), stderr=b"")
     return mock_result
 
 
@@ -275,6 +274,4 @@ class TestCheckAllPythonFiles:
 
                         # Verify the file from custom home was found
                         call_args = mock_pylint.call_args[0][0]
-                        assert any(
-                            str(custom_home) in str(f) for f in call_args
-                        )
+                        assert any(str(custom_home) in str(f) for f in call_args)

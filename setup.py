@@ -4,7 +4,7 @@
 import setuptools
 
 with open("README.md", "r") as fh:
-    long_description = fh.read() # pylint: disable = invalid-name
+    long_description = fh.read()  # pylint: disable = invalid-name
 
 setuptools.setup(
     name="ref_utils",
@@ -22,7 +22,6 @@ setuptools.setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: POSIX :: Linux",
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
     install_requires=["colorama==0.4.3"],
-
 )

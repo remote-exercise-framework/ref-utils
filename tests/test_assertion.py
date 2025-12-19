@@ -1,4 +1,5 @@
 """Tests for ref_utils.assertion module."""
+
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch

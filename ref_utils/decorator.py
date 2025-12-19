@@ -9,11 +9,12 @@ from ref_utils.error import RefUtilsError
 
 from .utils import print_err, print_ok
 
-DEFAULT_TASK_NAME = 'default'
-__registered_tasks: ty.Dict[str, '_Task'] = {}
+DEFAULT_TASK_NAME = "default"
+__registered_tasks: ty.Dict[str, "_Task"] = {}
+
 
 @dataclass
-class TestResult():
+class TestResult:
     """
     The result returned from a submission test.
     """
@@ -26,16 +27,18 @@ class TestResult():
 
 
 @dataclass
-class TaskTestResult():
+class TaskTestResult:
     """
     The result of a task's test, including the task name.
     Used for serialization when sending results to the webserver.
     """
+
     task_name: str
     success: bool
     score: ty.Optional[float]
 
-class _Task():
+
+class _Task:
     """
     A submission test can contain multiple tasks that are each checked individually and
     do not require other tasks to success.
@@ -48,15 +51,16 @@ class _Task():
     def __init__(self, name: str) -> None:
         self.name = name
         self.env_tests: ty.List[Callable[..., Any]] = []
-        self.submission_test: ty.Optional[Callable[..., Any]]= None
+        self.submission_test: ty.Optional[Callable[..., Any]] = None
         self.extended_submission_test: ty.Optional[Callable[..., Any]] = None
 
-def add_environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+
+def add_environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     warnings.warn("Please use @environment_test instead of @add_environment_test")
     return environment_test(task_name)
 
-def environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
 
+def environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def _environment_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: str, **kwargs: Any) -> Any:
@@ -67,14 +71,16 @@ def environment_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[
         __registered_tasks[task_name].env_tests.append(wrapper)
 
         return wrapper
+
     return _environment_test
 
-def add_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
+
+def add_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     warnings.warn("Please use @submission_test instead of @add_submission_test")
     return submission_test(task_name)
 
-def submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
 
+def submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def _submission_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: str, **kwargs: Any) -> Any:
@@ -84,14 +90,20 @@ def submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[C
             __registered_tasks[task_name] = _Task(task_name)
         g = __registered_tasks[task_name]
         if g.submission_test is not None:
-            raise RefUtilsError("The @submission_test decorator can only be used once. Set the task_name kwarg to different values, if you have multiple tasks.")
+            raise RefUtilsError(
+                "The @submission_test decorator can only be used once. "
+                "Set the task_name kwarg to different values, if you have multiple tasks."
+            )
         g.submission_test = wrapper
 
         return wrapper
+
     return _submission_test
 
-def extended_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Callable[[Callable[..., Any]], Any]], Any]:
 
+def extended_submission_test(
+    task_name: str = DEFAULT_TASK_NAME,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def _extended_submission_test(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: str, **kwargs: Any) -> Any:
@@ -101,12 +113,15 @@ def extended_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Ca
             __registered_tasks[task_name] = _Task(task_name)
         g = __registered_tasks[task_name]
         if g.extended_submission_test is not None:
-            raise RefUtilsError("The @extended_submission_test decorator can only be used once. Set the task_name kwarg to different values, if you have multiple tasks.")
+            raise RefUtilsError(
+                "The @extended_submission_test decorator can only be used once. "
+                "Set the task_name kwarg to different values, if you have multiple tasks."
+            )
         __registered_tasks[task_name].extended_submission_test = wrapper
 
         return wrapper
-    return _extended_submission_test
 
+    return _extended_submission_test
 
 
 def run_tests(
@@ -128,7 +143,7 @@ def run_tests(
     if result_will_be_submitted:
         os.environ["RESULT_WILL_BE_SUBMITTED"] = "1"
 
-    print_ok('[+] Running tests..')
+    print_ok("[+] Running tests..")
     all_tests_passed = True
     has_multiple_tasks = len(__registered_tasks) > 1
     task_test_results: ty.List[TaskTestResult] = []
@@ -138,15 +153,17 @@ def run_tests(
         task_passed = True
 
         if has_multiple_tasks:
-            print_ok(f'[+] *** Running tests for task \"{task_name}\" ***')
+            print_ok(f'[+] *** Running tests for task "{task_name}" ***')
             if only_run_these_tasks and task_name not in only_run_these_tasks:
                 print_ok("[+] User requested to exclude task, skipping...")
                 continue
 
         if tests.env_tests and not tests.submission_test and not tests.extended_submission_test:
-            raise RefUtilsError("Using @environment_test without @submission_test or @extended_submission_test is not allowed")
+            raise RefUtilsError(
+                "Using @environment_test without @submission_test or @extended_submission_test is not allowed"
+            )
 
-        print_ok('[+] Testing environment...')
+        print_ok("[+] Testing environment...")
         for test in tests.env_tests:
             ret = test()
             if not isinstance(ret, bool):
@@ -154,17 +171,17 @@ def run_tests(
             task_passed &= ret
             all_tests_passed &= ret
 
-        #Do not run submission tests if the environ is invalid
+        # Do not run submission tests if the environ is invalid
         if not task_passed:
             task_test_results.append(TaskTestResult(task_name, False, None))
             if has_multiple_tasks:
                 # Only print this if we have multiple tasks. If we only have one,
                 # the would just duplicate the error printed at the end.
-                print_err('[!] Task failed!')
+                print_err("[!] Task failed!")
             continue
-        print_ok('[+] Environment tests passed')
+        print_ok("[+] Environment tests passed")
 
-        print_ok('[+] Testing submission...')
+        print_ok("[+] Testing submission...")
         if tests.submission_test:
             try:
                 ret = tests.submission_test()
@@ -172,7 +189,7 @@ def run_tests(
                 print_err(str(e))
                 ret = False
             except KeyboardInterrupt:
-                print_err('[-] Keyboard Interrupt')
+                print_err("[-] Keyboard Interrupt")
                 ret = False
 
             if isinstance(ret, bool):
@@ -194,13 +211,13 @@ def run_tests(
             # Avoid printing errors twice.
             # If this is the only task, i.e., !has_multiple_tasks,
             # we will print the error message further below.
-            print_err('[!] Task failed!')
+            print_err("[!] Task failed!")
         elif task_passed:
-            print_ok('[+] Test passed')
+            print_ok("[+] Test passed")
 
     if not all_tests_passed:
-        print_err('[!] Some tests failed! Please review your submission to avoid penalties during grading.')
+        print_err("[!] Some tests failed! Please review your submission to avoid penalties during grading.")
     else:
-        print_ok('[+] All tests passed! Good job. Ready to submit!')
+        print_ok("[+] All tests passed! Good job. Ready to submit!")
 
     return task_test_results
