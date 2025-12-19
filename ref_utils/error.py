@@ -1,6 +1,8 @@
-from typing import Any
-from .utils import decode_or_str
 import signal
+from typing import Any
+
+from .utils import decode_or_str
+
 
 class RefUtilsError(Exception):
     """
@@ -13,7 +15,7 @@ class RefUtilsError(Exception):
         super().__init__(*args, **kwargs)
 
 class RefUtilsProcessTimeoutError(RefUtilsError):
-    
+
     def __init__(self, cmd: str, timeout: int) -> None:
         self.cmd: str = cmd
         self.timeout: int = timeout
@@ -23,7 +25,7 @@ class RefUtilsProcessTimeoutError(RefUtilsError):
         return self.msg
 
 class RefUtilsProcessError(RefUtilsError):
-    
+
     def __init__(self, cmd: str, exit_code: int, stdout: bytes, stderr: bytes) -> None:
         self.exit_code = exit_code
         if exit_code < 0:

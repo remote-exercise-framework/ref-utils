@@ -1,24 +1,23 @@
 """Functions related to dropping privileges"""
-from multiprocessing import Pipe, Process
-from multiprocessing.connection import Connection
-from types import TracebackType
-from typing import Any, Callable, Dict, List, Optional, Type, Tuple, Union
-from functools import wraps
+import errno
 import os
 import subprocess
 import sys
+import traceback
+import typing as t
+import warnings
+from functools import partial, wraps
+from multiprocessing import Pipe, Process
+from multiprocessing.connection import Connection
 from pathlib import Path
-import errno
-import pickle
-import io
-import importlib
-from functools import partial
+from types import TracebackType
+from typing import Any, Callable, List, Optional, Tuple, Type, Union
 
-from .utils import get_user_environment, print_err, map_path_as_posix, print_ok, decode_or_str, print_warn
-from .error import RefUtilsError, RefUtilsProcessTimeoutError, RefUtilsProcessError
+from .config import get_config
+from .error import RefUtilsError, RefUtilsProcessError, RefUtilsProcessTimeoutError
+from .serialization import safe_dumps, safe_loads
+from .utils import decode_or_str, get_user_environment, map_path_as_posix, print_err, print_ok
 
-_DEFAULT_DROP_UID = 9999
-_DEFAULT_DROP_GID = 9999
 
 def ref_util_exception_hook(type_: Type[BaseException], value: BaseException, traceback: TracebackType, redact_traceback: bool = False) -> None:
     """
@@ -47,27 +46,21 @@ def ref_util_install_global_exception_hook() -> None:
     hook = partial(ref_util_exception_hook, redact_traceback=False)
     sys.excepthook = hook
 
-# Hopefully safe, if not, please tell us, dont mess with the system. Thanks :)
-class RestrictedUnpickler(pickle.Unpickler):
-    ALLOWED_MODULE_NAME = {
-        ("subprocess", "CompletedProcess"),
-        ("ref_utils.error", "RefUtilsProcessError"),
-        ("ref_utils.error", "RefUtilsProcessTimeoutError"),
-        ("ref_utils.error", "RefUtilsAssertionError"),
-        ("ref_utils.error", "RefUtilsError")
-    }
+# DEPRECATED: RestrictedUnpickler is kept for backward compatibility only.
+# New code should use safe_dumps/safe_loads from serialization module.
+def restricted_loads(s: bytes) -> Any:
+    """Deserialize data using JSON-based serialization.
 
-    def find_class(self, module, name):
-        for safe_module_name in RestrictedUnpickler.ALLOWED_MODULE_NAME:
-            if safe_module_name == (module, name):
-                m = importlib.import_module(module)
-                return getattr(m, name)
-        else:
-            err = pickle.UnpicklingError(f"{module}.{name} is forbidden")
-            raise RefUtilsError(f"Failed to parse the output of the target during testing. This should not happen. Please inform the staff. ({err})")
-
-def restricted_loads(s):
-    return RestrictedUnpickler(io.BytesIO(s)).load()
+    .. deprecated::
+        Use safe_loads() from ref_utils.serialization instead.
+        This function now uses JSON serialization internally.
+    """
+    warnings.warn(
+        "restricted_loads is deprecated, use safe_loads from ref_utils.serialization",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return safe_loads(s)
 
 def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
     os.setresgid(gid, gid, gid)
@@ -76,12 +69,16 @@ def _drop_and_execute(conn: Connection, uid: int, gid: int, original_func: Calla
     os.setresuid(uid, uid, uid)
     try:
         ret = original_func(*args, **kwargs)
-        pickled_ret = pickle.dumps(ret)
-        conn.send_bytes(pickled_ret)
+        serialized_ret = safe_dumps(ret)
+        conn.send_bytes(serialized_ret)
+    except AttributeError:
+        exception_str = traceback.format_exc()
+        print_err(f"[!] Unexpected error:\n{exception_str}")
+        exit(1)
     except Exception as e:
-        #Forward exception to our parent
-        pickled_e = pickle.dumps(e)
-        conn.send_bytes(pickled_e)
+        # Forward exception to our parent
+        serialized_e = safe_dumps(e)
+        conn.send_bytes(serialized_e)
     finally:
         conn.close()
 
@@ -89,19 +86,17 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator which drops the privileges to default UID, GID tuple before executing the decorated function.
     Uses fork and setuid to drop privileges.
-    NOTE: The decorated function's output is communicated back via a pipe and encoded via pickle.
-    Thus, we are unpickling untrusted data here!
+    NOTE: The decorated function's output is communicated back via a pipe and encoded via JSON.
     """
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         parent_conn, child_conn = Pipe()
-        p = Process(target=_drop_and_execute, args=(child_conn, _DEFAULT_DROP_UID, _DEFAULT_DROP_GID, func, *args,), kwargs=kwargs)
+        config = get_config()
+        p = Process(target=_drop_and_execute, args=(child_conn, config.drop_uid, config.drop_gid, func, *args,), kwargs=kwargs)
         p.start()
-        pickled_ret: Any = parent_conn.recv_bytes()
-        # ! Unpickle the data that was pickled by our untrusted party in `_drop_and_execute`.
-        # ! We are only allowing a subset of python types.
-        # ! It would be prefereable to use JSON here to make this actually feel safe.
-        ret = restricted_loads(pickled_ret)
+        serialized_ret: Any = parent_conn.recv_bytes()
+        # Deserialize using JSON-based serialization (secure alternative to pickle)
+        ret = safe_loads(serialized_ret)
         p.join()
         if isinstance(ret, Exception):
             raise ret
@@ -136,7 +131,7 @@ def run(cmd_: List[Union[str, Path, bytes]], *args: str, **kwargs: Any) -> 'subp
     if "stdin" not in kwargs and "input" not in kwargs:
         kwargs["stdin"] = subprocess.DEVNULL
 
-    if not 'env' in kwargs:
+    if 'env' not in kwargs:
         # Restore the environment from the user as of the time she called `task ...`.
         # NOTE: The stored environment contains user controlled input!
         # Never restore the environment in a privileged context.
