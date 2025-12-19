@@ -1,17 +1,14 @@
-from functools import wraps
-from collections import defaultdict
-from pathlib import Path
-from typing import Any, Callable, List
+import os
 import typing as ty
+import warnings
+from dataclasses import dataclass
+from functools import wraps
+from typing import Any, Callable
 
 from ref_utils.error import RefUtilsError
-from .utils import print_ok, print_err
-from dataclasses import dataclass, asdict
-import warnings
-import json
-import os
 
-TEST_RESULT_PATH = Path("/var/test_result")
+from .utils import print_err, print_ok
+
 DEFAULT_TASK_NAME = 'default'
 __registered_tasks: ty.Dict[str, '_Task'] = {}
 
@@ -29,9 +26,10 @@ class TestResult():
 
 
 @dataclass
-class _TestResult():
+class TaskTestResult():
     """
-    Class used to serialize data before sending it to the webserver.
+    The result of a task's test, including the task name.
+    Used for serialization when sending results to the webserver.
     """
     task_name: str
     success: bool
@@ -111,30 +109,38 @@ def extended_submission_test(task_name: str = DEFAULT_TASK_NAME) -> Callable[[Ca
 
 
 
-def run_tests() -> None:
+def run_tests(
+    *,
+    result_will_be_submitted: bool = False,
+    only_run_these_tasks: ty.Optional[ty.Sequence[str]] = None,
+) -> ty.List[TaskTestResult]:
     """
-    Must be called by the test script to execute all tests.
+    Execute all registered tests.
+
+    Args:
+        result_will_be_submitted: If True, indicates this is a final submission.
+        only_run_these_tasks: Optional list of task names to run. If None, runs all tasks.
+
+    Returns:
+        A list of TaskTestResult objects containing the results of each task.
     """
+    # Set env var so test_result_will_be_submitted() works within tests
+    if result_will_be_submitted:
+        os.environ["RESULT_WILL_BE_SUBMITTED"] = "1"
+
     print_ok('[+] Running tests..')
     all_tests_passed = True
     has_multiple_tasks = len(__registered_tasks) > 1
-    task_test_results: ty.List[_TestResult] = []
-
-    # This is set by task.py if the user only wants to run a subset of tests.
-    only_run_these_tasks = os.environ.get("ONLY_RUN_THESE_TASKS")
-    if only_run_these_tasks:
-        only_run_these_tasks = only_run_these_tasks.split(":")
+    task_test_results: ty.List[TaskTestResult] = []
 
     # Run all sub-tasks one after another.
     for task_name, tests in __registered_tasks.items():
         task_passed = True
 
-        TEST_RESULT_PATH.unlink(missing_ok=True)
-
         if has_multiple_tasks:
             print_ok(f'[+] *** Running tests for task \"{task_name}\" ***')
             if only_run_these_tasks and task_name not in only_run_these_tasks:
-                print_ok(f"[+] User requested to exclude task, skipping...")
+                print_ok("[+] User requested to exclude task, skipping...")
                 continue
 
         if tests.env_tests and not tests.submission_test and not tests.extended_submission_test:
@@ -150,7 +156,7 @@ def run_tests() -> None:
 
         #Do not run submission tests if the environ is invalid
         if not task_passed:
-            task_test_results.append(_TestResult(task_name, False, None))
+            task_test_results.append(TaskTestResult(task_name, False, None))
             if has_multiple_tasks:
                 # Only print this if we have multiple tasks. If we only have one,
                 # the would just duplicate the error printed at the end.
@@ -170,9 +176,9 @@ def run_tests() -> None:
                 ret = False
 
             if isinstance(ret, bool):
-                ret = _TestResult(task_name, ret, None)
+                ret = TaskTestResult(task_name, ret, None)
             elif isinstance(ret, TestResult):
-                ret = _TestResult(task_name, ret.success, ret.score)
+                ret = TaskTestResult(task_name, ret.success, ret.score)
             else:
                 raise RefUtilsError(f"Submission test returned unexpected type: {type(ret)}")
 
@@ -181,7 +187,7 @@ def run_tests() -> None:
             all_tests_passed &= ret.success
         else:
             # If there is no test, we consider this to be an success.
-            task_test_results.append(_TestResult(task_name, True, None))
+            task_test_results.append(TaskTestResult(task_name, True, None))
             print_ok("[+] No test found")
 
         if not task_passed and has_multiple_tasks:
@@ -197,5 +203,4 @@ def run_tests() -> None:
     else:
         print_ok('[+] All tests passed! Good job. Ready to submit!')
 
-    results = json.dumps([asdict(e) for e in task_test_results])
-    TEST_RESULT_PATH.write_text(results)
+    return task_test_results

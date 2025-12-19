@@ -1,11 +1,12 @@
 """Various checks you may want to run during submission tests"""
-from pathlib import Path
-from typing import List, Optional
-
 import os
+import subprocess
+from pathlib import Path
+from typing import List
 
-from .utils import print_ok, print_warn, print_err, SUCCESS, FAILURE
+from .config import get_config
 from .process import run
+from .utils import FAILURE, SUCCESS, print_err, print_ok, print_warn
 
 _NO_LINT_ENV_VAR = "NO_LINT"
 _ENV_VAL_TRUE = "1"
@@ -16,10 +17,9 @@ def contains_flag(flag: str, python_script: Path, silent: bool = False) -> bool:
     Run submitted file and match whether it contains the flag value.
     """
     cmd: List[str] = ["python3", python_script.as_posix()]
-    output: Optional[str] = run(cmd, check_returncode=False, timeout=10)
-    if output is None:
-        return FAILURE
-    if not flag in output:
+    result = run(cmd, check_signal=False, timeout=10, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = result.stdout.decode() if result.stdout else ""
+    if flag not in output:
         if not silent:
             print_err("[!] Failed to find flag")
         return FAILURE
@@ -34,10 +34,10 @@ def run_pylint(python_files: List[Path]) -> bool:
     """
     if not python_files or os.environ.get(_NO_LINT_ENV_VAR, '') == _ENV_VAL_TRUE:
         return SUCCESS
-    lint_output = run(["pylint", "--exit-zero", "--rcfile", "/etc/pylintrc"] +
-                      [str(f.resolve()) for f in python_files])
-    if lint_output is None:
-        return FAILURE
+    result = run(["pylint", "--exit-zero", "--rcfile", str(get_config().pylint_config_path)] +
+                 [str(f.resolve()) for f in python_files],
+                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    lint_output = result.stdout.decode() if result.stdout else ""
     if lint_output != "":
         print_warn("[!] pylint's syntax and coding style checks failed:")
         print_warn('    ' + '\n    '.join(lint_output.split('\n')))
@@ -52,9 +52,10 @@ def run_mypy(python_files: List[Path]) -> bool:
     """
     if not python_files or os.environ.get(_NO_LINT_ENV_VAR, '') == _ENV_VAL_TRUE:
         return SUCCESS
-    lint_output = run(["mypy", "--config-file", "/etc/mypyrc"] + [str(f.resolve()) for f in python_files])
-    if lint_output is None:
-        return FAILURE
+    cmd = ["mypy", "--config-file", str(get_config().mypy_config_path)]
+    cmd += [str(f.resolve()) for f in python_files]
+    result = run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    lint_output = result.stdout.decode() if result.stdout else ""
     if lint_output != "":
         print_warn("[!] mypy's type checks failed:")
         print_warn('    ' + '\n    '.join(lint_output.split('\n')))
@@ -68,7 +69,7 @@ def check_all_python_files() -> bool:
     Run checks only suited for Python files (mypy + pylint)
     """
     tests_passed = True
-    python_files = [f for f in Path("/home/user").glob("**/*.py") if not f.name.startswith(".")]
+    python_files = [f for f in get_config().user_home_path.glob("**/*.py") if not f.name.startswith(".")]
     if not python_files or os.environ.get(_NO_LINT_ENV_VAR, '') == _ENV_VAL_TRUE:
         return tests_passed
     print_ok(f'[+] Testing {len(python_files)} Python source code files')

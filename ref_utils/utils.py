@@ -1,11 +1,17 @@
 """ Utility functions including colored printing or subprocess.run wrapper dropping privileges"""
-import sys
 import os
+import sys
 import typing as t
+from pathlib import Path
 from typing import Any, AnyStr, List, Union
 
-from pathlib import Path
 from colorama import Fore, Style
+
+from .config import get_config
+
+# Constants for return values
+SUCCESS: bool = True
+FAILURE: bool = False
 
 
 def print_ok(*args: str, **kwargs: Any) -> None:
@@ -46,7 +52,7 @@ def get_user_environment() -> t.Dict[str, Union[str, bytes]]:
         defined during submission.
     """
     ret: t.Dict[str, Union[str, bytes]] = {}
-    content = Path('/tmp/.user_environ').read_text()
+    content = get_config().user_environ_path.read_text()
     lines = content.split('\x00')
     for line in lines:
         if line == '':
