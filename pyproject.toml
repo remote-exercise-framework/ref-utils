@@ -47,3 +47,6 @@ dev = [
     "ruff>=0.8.0",
     "pyright>=1.1.0",
 ]
+
+[tool.uv]
+cache-dir = ".uv-cache"
