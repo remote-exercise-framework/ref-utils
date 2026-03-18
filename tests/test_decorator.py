@@ -17,6 +17,7 @@ from ref_utils.decorator import (
     extended_submission_test,
     run_tests,
     submission_test,
+    suppress_run_tests,
 )
 from ref_utils.error import RefUtilsError
 
@@ -394,3 +395,23 @@ class TestRunTests:
         assert isinstance(results, list)
         assert len(results) == 1
         assert isinstance(results[0], TaskTestResult)
+
+    def test_suppress_run_tests_returns_empty_with_warning(self) -> None:
+        """Test that run_tests() emits a deprecation warning when suppressed."""
+
+        @submission_test()
+        def sub_test() -> bool:
+            return True
+
+        suppress_run_tests(True)
+        try:
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                results = run_tests()
+
+            assert results == []
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "deprecated" in str(w[0].message).lower()
+        finally:
+            suppress_run_tests(False)

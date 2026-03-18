@@ -11,6 +11,7 @@ from .utils import print_err, print_ok
 
 DEFAULT_TASK_NAME = "default"
 __registered_tasks: ty.Dict[str, "_Task"] = {}
+_suppress_run_tests: bool = False
 
 
 @dataclass
@@ -124,6 +125,12 @@ def extended_submission_test(
     return _extended_submission_test
 
 
+def suppress_run_tests(suppress: bool = True) -> None:
+    """Suppress run_tests() calls (used by task.py to prevent double execution)."""
+    global _suppress_run_tests
+    _suppress_run_tests = suppress
+
+
 def run_tests(
     *,
     result_will_be_submitted: bool = False,
@@ -139,6 +146,16 @@ def run_tests(
     Returns:
         A list of TaskTestResult objects containing the results of each task.
     """
+    if _suppress_run_tests:
+        warnings.warn(
+            "Calling rf.run_tests() at the end of submission_tests is deprecated "
+            "and will be removed in a future version. "
+            "Remove the rf.run_tests() call; tests are executed automatically.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return []
+
     # Set env var so test_result_will_be_submitted() works within tests
     if result_will_be_submitted:
         os.environ["RESULT_WILL_BE_SUBMITTED"] = "1"

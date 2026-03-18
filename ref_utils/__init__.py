@@ -25,6 +25,7 @@ __all__ = [
     "add_environment_test",
     "add_submission_test",
     "run_tests",
+    "suppress_run_tests",
     # Process
     "drop_privileges",
     "run",
@@ -57,6 +58,7 @@ from .decorator import (
     environment_test,
     run_tests,
     submission_test,
+    suppress_run_tests,
 )
 from .process import (
     drop_privileges,
