@@ -36,6 +36,9 @@ class InstanceInfo:
     exercise_version: int
 
 
+_cached_info: ty.Optional[InstanceInfo] = None
+
+
 def _sign_request(instance_id: int, key: bytes, payload: ty.Dict[str, ty.Any]) -> str:
     signer = TimedSerializer(key, salt="from-container-to-web")
     payload = dict(payload)
@@ -43,18 +46,7 @@ def _sign_request(instance_id: int, key: bytes, payload: ty.Dict[str, ty.Any]) -
     return signer.dumps(payload)  # type: ignore[no-any-return]
 
 
-def get_instance_info(timeout_s: float = 10.0) -> InstanceInfo:
-    """Fetch trusted details about the current instance from the webapp.
-
-    All fields originate from the webserver's database; the request is signed
-    with the instance-specific key at ``/etc/key``, which is not accessible to
-    the student user. Use this to branch test behavior on user role without
-    trusting anything the student can tamper with.
-
-    Raises:
-        InstanceInfoError: if credentials are missing, the webapp is
-            unreachable, or the response cannot be parsed.
-    """
+def _fetch_instance_info(timeout_s: float) -> InstanceInfo:
     try:
         key = KEY_PATH.read_bytes()
         instance_id = int(INSTANCE_ID_PATH.read_text().strip())
@@ -83,3 +75,30 @@ def get_instance_info(timeout_s: float = 10.0) -> InstanceInfo:
         return InstanceInfo(**data)
     except TypeError as e:
         raise InstanceInfoError(f"Response missing or extra fields: {e}") from e
+
+
+def get_instance_info(timeout_s: float = 10.0, *, refresh: bool = False) -> InstanceInfo:
+    """Fetch trusted details about the current instance from the webapp.
+
+    All fields originate from the webserver's database; the request is signed
+    with the instance-specific key at ``/etc/key``, which is not accessible to
+    the student user. Use this to branch test behavior on user role without
+    trusting anything the student can tamper with.
+
+    The result is cached process-wide on first success (instance metadata does
+    not change during a test run, and the endpoint is rate-limited). Pass
+    ``refresh=True`` to bypass the cache and force a new fetch. Failed
+    requests are not cached, so a transient outage does not poison subsequent
+    calls.
+
+    Raises:
+        InstanceInfoError: if credentials are missing, the webapp is
+            unreachable, or the response cannot be parsed.
+    """
+    global _cached_info
+    if _cached_info is not None and not refresh:
+        return _cached_info
+
+    info = _fetch_instance_info(timeout_s)
+    _cached_info = info
+    return info
