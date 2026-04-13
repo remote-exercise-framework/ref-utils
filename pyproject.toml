@@ -1,6 +1,6 @@
 [project]
 name = "ref-utils"
-version = "0.1.8"
+version = "0.1.9"
 description = "A package containing various utility functions for remote-exercise-framework submission process"
 authors = [
     {name = "Nils Bars", email = "nils.bars@rub.de"},
@@ -16,6 +16,8 @@ classifiers = [
 ]
 dependencies = [
     "colorama>=0.4.3",
+    "requests>=2.28",
+    "itsdangerous>=2.0",
 ]
 
 [build-system]

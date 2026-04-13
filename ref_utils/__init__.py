@@ -8,6 +8,7 @@ __all__ = [
     "decorator",
     "config",
     "serialization",
+    "instance",
     # Config
     "Config",
     "get_config",
@@ -26,6 +27,10 @@ __all__ = [
     "add_submission_test",
     "run_tests",
     "suppress_run_tests",
+    # Instance
+    "InstanceInfo",
+    "InstanceInfoError",
+    "get_instance_info",
     # Process
     "drop_privileges",
     "run",
@@ -60,6 +65,7 @@ from .decorator import (
     submission_test,
     suppress_run_tests,
 )
+from .instance import InstanceInfo, InstanceInfoError, get_instance_info
 from .process import (
     drop_privileges,
     get_payload_from_executable,
