@@ -259,6 +259,19 @@ def _register_standard_exceptions(serializer: IPCSerializer) -> None:
             )
         )
 
+    # KeyboardInterrupt is a BaseException, not an Exception, so the generic
+    # Exception fallback below does not cover it. Register it explicitly so
+    # privilege-dropping child processes can forward a Ctrl+C back to the
+    # parent instead of producing a duplicate traceback.
+    serializer.register(
+        TypeCodec(
+            type_tag="builtin.KeyboardInterrupt",
+            target_type=KeyboardInterrupt,
+            to_dict=lambda e: {"args": list(e.args)},
+            from_dict=lambda d: KeyboardInterrupt(*d.get("args", [])),
+        )
+    )
+
     # Generic Exception fallback - handles any Exception subclass
     # This must be registered LAST as it matches any Exception
     serializer.register(

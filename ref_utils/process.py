@@ -92,8 +92,10 @@ def _drop_and_execute(
         exception_str = traceback.format_exc()
         print_err(f"[!] Unexpected error:\n{exception_str}")
         exit(1)
-    except Exception as e:
-        # Forward exception to our parent
+    except (Exception, KeyboardInterrupt) as e:
+        # Forward exception to our parent. KeyboardInterrupt is included so a
+        # Ctrl+C delivered to this child does not escape as an uncaught
+        # BaseException and produce a duplicate traceback from multiprocessing.
         serialized_e = safe_dumps(e)
         conn.send_bytes(serialized_e)
     finally:
@@ -127,7 +129,7 @@ def drop_privileges(func: Callable[..., Any]) -> Callable[..., Any]:
         # Deserialize using JSON-based serialization (secure alternative to pickle)
         ret = safe_loads(serialized_ret)
         p.join()
-        if isinstance(ret, Exception):
+        if isinstance(ret, BaseException):
             raise ret
         return ret
 
